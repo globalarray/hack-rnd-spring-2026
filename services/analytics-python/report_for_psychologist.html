@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Психологический протокол: {{ user_name }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        @media print {
+            .no-print { display: none; }
+            body { background-color: white; }
+            .report-card { border: none; shadow: none; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-slate-900 p-4 md:p-10">
+
+<div class="max-w-5xl mx-auto bg-white shadow-2xl rounded-3xl overflow-hidden border border-gray-200">
+    <header class="bg-slate-800 text-white p-8">
+        <div class="flex justify-between items-start">
+            <div>
+                <h1 class="text-3xl font-bold mb-2">Диагностический протокол</h1>
+                <p class="text-slate-400">Система комплексной оценки персонала «ПрофДНК»</p>
+            </div>
+            <div class="text-right">
+                <div class="bg-red-600 px-4 py-1 rounded-full text-sm font-bold mb-2 inline-block">CONFIDENTIAL</div>
+                <p class="text-sm opacity-75">ID Сессии: {{ session_id }}</p>
+            </div>
+        </div>
+    </header>
+
+    <main class="p-8 space-y-10">
+        <section>
+            <h2 class="text-xl font-bold text-slate-800 mb-4 border-b-2 border-green-500 pb-2">1. Информация о
+                респонденте</h2>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 bg-slate-50 p-6 rounded-2xl border border-slate-200">
+                <div>
+                    <p class="text-xs uppercase text-slate-500 font-bold mb-1">ФИО</p>
+                    <p class="text-lg font-semibold">{{ user_name }}</p>
+                </div>
+                <div>
+                    <p class="text-xs uppercase text-slate-500 font-bold mb-1">Время теста</p>
+                    <p class="text-lg font-semibold">{{ duration }}</p>
+                </div>
+                <div>
+                    <p class="text-xs uppercase text-slate-500 font-bold mb-1">Валидность (L)</p>
+                    <p class="text-lg font-semibold text-green-600">{{ sincerity_score }}%</p>
+                </div>
+                <div>
+                    <p class="text-xs uppercase text-slate-500 font-bold mb-1">Дата</p>
+                    <p class="text-lg font-semibold">{{ date }}</p>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <h2 class="text-xl font-bold text-slate-800 mb-4 border-b-2 border-green-500 pb-2">2. Распределение
+                компетенций</h2>
+            <div class="flex justify-center bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                <img src="data:image/png;base64,{{ chart_base64 }}" alt="Гистограмма баллов" class="max-w-full h-auto">
+            </div>
+        </section>
+
+        <section>
+            <h2 class="text-xl font-bold text-slate-800 mb-4 border-b-2 border-green-500 pb-2">3. Клиническая
+                интерпретация шкал</h2>
+            <div class="overflow-hidden rounded-xl border border-slate-200">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                    <tr class="bg-slate-800 text-white">
+                        <th class="p-4 font-bold text-sm uppercase">Фактор</th>
+                        <th class="p-4 font-bold text-sm uppercase text-center">Балл</th>
+                        <th class="p-4 font-bold text-sm uppercase text-center">Тип профиля</th>
+                        <th class="p-4 font-bold text-sm uppercase">Гипотеза для специалиста</th>
+                    </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200">
+                    {% for f in factors %}
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="p-4 font-bold text-slate-800">{{ f.name }}</td>
+                        <td class="p-4 text-center font-bold">{{ f.raw_score }}</td>
+                        <td class="p-4 text-center">
+                            <span class="px-2 py-1 rounded text-xs font-bold {% if f.accentuation != 'Норма' %}bg-red-100 text-red-700{% else %}bg-blue-100 text-blue-700{% endif %}">
+                                {{ f.accentuation }}
+                            </span>
+                        </td>
+                        <td class="p-4 text-slate-600 text-sm italic">{{ f.psych_comment }}</td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section>
+            <h2 class="text-xl font-bold text-red-700 mb-4 border-b-2 border-red-500 pb-2">4. Критические ответы
+                (Маркеры риска)</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {% for item in critical_answers %}
+                <div class="p-4 rounded-xl border-l-4 border-red-500 bg-red-50">
+                    <p class="text-xs font-bold text-red-800 mb-1">Вопрос №{{ item.id }}</p>
+                    <p class="text-sm text-slate-700 font-medium mb-1">{{ item.question }}</p>
+                    <p class="text-sm font-bold text-red-600 italic text-right">Ответ: «{{ item.answer }}»</p>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section>
+            <h2 class="text-xl font-bold text-slate-800 mb-4 border-b-2 border-green-500 pb-2">5. Полный протокол
+                ответов</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {% for item in q_answers %}
+                <div class="p-3 rounded-lg border border-slate-200 bg-slate-50 text-sm">
+                    <span class="font-bold text-slate-400">#{{ loop.index }}</span>
+                    <span class="text-slate-700">{{ item.question }}</span>
+                    <span class="block mt-1 font-semibold text-slate-900">— {{ item.answer }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="bg-slate-100 p-8 rounded-3xl border border-slate-200">
+            <h3 class="text-slate-800 font-bold text-lg mb-2 text-center uppercase tracking-widest">Заключение
+                психолога</h3>
+            <div class="h-32 border-b border-dashed border-slate-400"></div>
+        </section>
+    </main>
+
+    <footer class="bg-slate-50 p-6 text-center border-t border-slate-200">
+        <p class="text-slate-400 text-xs uppercase tracking-widest">ProfDNA Analytics Engine &copy; 2026</p>
+    </footer>
+</div>
+
+<div class="max-w-5xl mx-auto mt-6 text-center no-print pb-10">
+    <button onclick="window.print()" class="bg-slate-800 text-white px-8 py-3 rounded-full font-bold shadow-lg">Печать
+        протокола
+    </button>
+</div>
+</body>
+</html>

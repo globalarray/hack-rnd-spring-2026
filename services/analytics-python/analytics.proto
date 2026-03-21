@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package analytics.v1;
+
+// 1. Сначала определения перечислений
+enum QuestionType {
+  QUESTION_TYPE_UNSPECIFIED = 0;
+  CHOICE = 1;
+  TEXT = 2;
+}
+
+enum ReportFormat {
+  REPORT_FORMAT_UNSPECIFIED = 0;
+  REPORT_FORMAT_DOCX = 1;
+  REPORT_FORMAT_HTML = 2;
+  REPORT_FORMAT_PSYCHO_DOCX = 3;
+  REPORT_FORMAT_PSYCHO_HTML = 4;
+}
+
+// 2. Определение маленького сообщения (ДО того, как оно понадобится)
+message RawClientResponse {
+  string question_id = 1;
+  QuestionType question_type = 2;
+  string question_text = 3;
+  double selected_weight = 4;
+  string category_tag = 5;
+  string raw_text = 6;
+}
+
+// 3. Теперь это сообщение МОЖНО использовать здесь
+message GenerateReportRequest {
+  string session_id = 1;
+  ReportFormat format = 2;
+  repeated RawClientResponse responses = 4;
+}
+
+message GenerateReportResponse {
+  bytes file_content = 1;
+  string content_type = 2;
+  string suggested_filename = 3;
+}
+
+// 4. Сервис
+service AnalyticsService {
+  rpc GenerateReport(GenerateReportRequest) returns (GenerateReportResponse);
+}
