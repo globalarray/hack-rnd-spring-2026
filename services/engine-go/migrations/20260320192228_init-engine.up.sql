@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
 CREATE TABLE IF NOT EXISTS surveys (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     psychologist_id UUID NOT NULL,
@@ -11,19 +13,12 @@ CREATE TABLE IF NOT EXISTS surveys (
 
 CREATE INDEX idx_surveys_psychologist_id ON surveys(psychologist_id);
 
-CREATE TYPE question_type as ENUM (
-    'SINGLE_CHOICE',
-    'MULTIPLE_CHOICE',
-    'SCALE',
-    'TEXT',
-)
-
 CREATE TYPE session_status as ENUM (
     'CREATED',
     'IN_PROGRESS',
     'REVOKED',
     'COMPLETED'
-)
+);
 
 -- example: "rules": {"uuid-ans-1": {"action": "JUMP", "next": "uuid-ans-3}}
 
@@ -31,7 +26,7 @@ CREATE TABLE IF NOT EXISTS questions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     survey_id UUID NOT NULL REFERENCES surveys(id) ON DELETE CASCADE,
     order_num INT NOT NULL,
-    type question_type NOT NULL,
+    type int NOT NULL,
     text TEXT NOT NULL,
     logic_rules JSONB DEFAULT '{"rules": [], "default_next": "linear"}'::jsonb
     );
@@ -52,8 +47,8 @@ CREATE INDEX idx_answers_question_id ON answers(question_id);
 CREATE TABLE IF NOT EXISTS sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     survey_id UUID NOT NULL REFERENCES surveys(id) ON DELETE CASCADE,
-    client_metadata JSONB DEFAULT '{}'::jsonb;
-    status session_status NOT NULL DEFAULT ,
+    client_metadata JSONB DEFAULT '{}'::jsonb,
+    status session_status NOT NULL DEFAULT 'CREATED',
     started_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     completed_at TIMESTAMPTZ
     );

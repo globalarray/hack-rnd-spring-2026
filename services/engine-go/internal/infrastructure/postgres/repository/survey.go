@@ -56,7 +56,7 @@ func (r *surveyRepository) SaveFull(ctx context.Context, in *servicedto.CreateSu
 		}
 
 		for _, a := range q.Answers {
-			if _, err := tx.ExecContext(ctx, queryInsertAnswer, surveyUUID, qUUID, a.Text, a.Weight, a.CategoryTag); err != nil {
+			if _, err := tx.ExecContext(ctx, queryInsertAnswer, a.ID, qUUID, a.Text, a.Weight, a.CategoryTag); err != nil {
 				return surveyUUID, fmt.Errorf("insert answer: %w", err)
 			}
 		}
@@ -79,5 +79,5 @@ func (r *surveyRepository) GetQuestionByOrderAndSurvey(ctx context.Context, surv
 		return q, fmt.Errorf("select question: %w", err)
 	}
 
-	return mapQuestionRecordToQuestion(questionRow), nil
+	return mapQuestionRecordToQuestion(questionRow)
 }

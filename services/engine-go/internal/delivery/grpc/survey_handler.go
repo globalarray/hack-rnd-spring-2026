@@ -34,7 +34,11 @@ func (sh *surveyHandler) CreateSurvey(ctx context.Context, req *pb.CreateSurveyR
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	input := mapCreateSurveyRequestToInput(req)
+	input, err := mapCreateSurveyRequestToInput(req)
+
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
 
 	uuid, err := sh.service.Create(ctx, input)
 

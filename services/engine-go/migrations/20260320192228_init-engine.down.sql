@@ -1,8 +1,8 @@
-DROP TABLE IF EXISTS surveys;
-DROP TABLE IF EXISTS questions;
-DROP TABLE IF EXISTS answers;
-DROP TABLE IF EXISTS sessions;
-DROP TABLE IF EXISTS responses;
+DROP TABLE IF EXISTS surveys CASCADE;
+DROP TABLE IF EXISTS questions CASCADE;
+DROP TABLE IF EXISTS answers CASCADE;
+DROP TABLE IF EXISTS sessions CASCADE;
+DROP TABLE IF EXISTS responses CASCADE;
 
 DROP INDEX IF EXISTS idx_surveys_psychologist_id;
 DROP INDEX IF EXISTS idx_questions_survey_id;
@@ -12,4 +12,3 @@ DROP INDEX IF EXISTS idx_sessions_survey_id;
 DROP INDEX IF EXISTS idx_responses_session_id;
 
 DROP TYPE IF EXISTS session_status;
-DROP TYPE IF EXISTS question_type;

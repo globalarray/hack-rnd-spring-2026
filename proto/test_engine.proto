@@ -1,136 +1,138 @@
-syntax = "proto3";
+  syntax = "proto3";
 
-package testengine.v1;
+  package testengine.v1;
 
-option go_package = "sourcecraft.dev/benzo/testengine/internal/gen/pb;pb";
+  option go_package = "sourcecraft.dev/benzo/testengine/internal/gen/pb;pb";
 
-import "validate/validate.proto";
+  import "validate/validate.proto";
+  import "google/protobuf/struct.proto";
 
-service SurveyAdminService {
-  // Сохраняет весь граф теста (вызывается при создании в конструкторе)
-  rpc CreateSurvey(CreateSurveyRequest) returns (CreateSurveyResponse);
+  service SurveyAdminService {
+    // Сохраняет весь граф теста (вызывается при создании в конструкторе)
+    rpc CreateSurvey(CreateSurveyRequest) returns (CreateSurveyResponse);
 
-  // Получает список тестов для кабинета профориентолога
-  rpc ListSurveys(ListSurveysRequest) returns (ListSurveysResponse);
-}
+    // Получает список тестов для кабинета профориентолога
+    rpc ListSurveys(ListSurveysRequest) returns (ListSurveysResponse);
+  }
 
-service SessionClientService {
-  // Создает анонимную сессию и отдает первый вопрос (без весов и логики)
-  rpc StartSession(StartSessionRequest) returns (StartSessionResponse);
+  service SessionClientService {
+    // Создает анонимную сессию и отдает первый вопрос (без весов и логики)
+    rpc StartSession(StartSessionRequest) returns (StartSessionResponse);
 
-  // Принимает ответ, маршрутизирует по графу и отдает следующий шаг
-  rpc SubmitAnswer(SubmitAnswerRequest) returns (SubmitAnswerResponse);
-}
+    // Принимает ответ, маршрутизирует по графу и отдает следующий шаг
+    rpc SubmitAnswer(SubmitAnswerRequest) returns (SubmitAnswerResponse);
+  }
 
-service AnalyticsService {
-  rpc GetSessionDataForAnalytics(GetSessionDataRequest) returns (SessionAnalyticsResponse);
-}
+  service AnalyticsService {
+    rpc GetSessionDataForAnalytics(GetSessionDataRequest) returns (SessionAnalyticsResponse);
+  }
 
-enum QuestionType {
-  QUESTION_TYPE_UNSPECIFIED = 0;
-  QUESTION_TYPE_SINGLE_CHOICE = 1;
-  QUESTION_TYPE_MULTIPLE_CHOICE = 2;
-  QUESTION_TYPE_SCALE = 3;
-  QUESTION_TYPE_TEXT = 4;
-}
+  enum QuestionType {
+    QUESTION_TYPE_UNSPECIFIED = 0;
+    QUESTION_TYPE_SINGLE_CHOICE = 1;
+    QUESTION_TYPE_MULTIPLE_CHOICE = 2;
+    QUESTION_TYPE_SCALE = 3;
+    QUESTION_TYPE_TEXT = 4;
+  }
 
-message CreateSurveyRequest {
-  string psychologist_id = 1 [(validate.rules).string.uuid = true];
-  string title = 2 [(validate.rules).string.min_len = 5];
-  string description = 3;
-  string settings_json = 4;   // Настройки приватности и стартовой формы
-  repeated QuestionPayload questions = 5;
-}
+  message CreateSurveyRequest {
+    string psychologist_id = 1 [(validate.rules).string.uuid = true];
+    string title = 2 [(validate.rules).string.min_len = 5];
+    string description = 3;
+    google.protobuf.Struct settings_json = 4;   // Настройки приватности и стартовой формы
+    repeated QuestionPayload questions = 5;
+  }
 
-message QuestionPayload {
-  uint32 order_num = 1;
-  QuestionType type = 2;
-  string text = 3;
-  string logic_rules_json = 4; // Граф переходов: {"rules": {"ans_id": {"action": "JUMP", "target": "q_id"}}}
-  repeated AnswerPayload answers = 5;
-}
+  message QuestionPayload {
+    uint32 order_num = 1;
+    QuestionType type = 2;
+    string text = 3;
+    google.protobuf.Struct logic_rules_json = 4; // Граф переходов: {"rules": {"ans_id": {"action": "JUMP", "target": "q_id"}}}
+    repeated AnswerPayload answers = 5;
+  }
 
-message AnswerPayload {
-  string text = 1;
-  double weight = 2;           // Вес ответа для ML
-  string category_tag = 3;     // Тег шкалы для группировки в Pandas
-}
+  message AnswerPayload {
+    string id = 1 [(validate.rules).string.uuid = true];
+    string text = 2;
+    double weight = 3;           // Вес ответа для ML
+    string category_tag = 4;     // Тег шкалы для группировки в Pandas
+  }
 
-message CreateSurveyResponse {
-  string survey_id = 1 [(validate.rules).string.uuid = true];
-}
+  message CreateSurveyResponse {
+    string survey_id = 1 [(validate.rules).string.uuid = true];
+  }
 
-message ListSurveysRequest {
-  string psychologist_id = 1 [(validate.rules).string.uuid = true];
-}
+  message ListSurveysRequest {
+    string psychologist_id = 1 [(validate.rules).string.uuid = true];
+  }
 
-message ListSurveysResponse {
-  repeated SurveySummary surveys = 1;
-}
+  message ListSurveysResponse {
+    repeated SurveySummary surveys = 1;
+  }
 
-message SurveySummary {
-  string survey_id = 1 [(validate.rules).string.uuid = true];
-  string title = 2;
-  int32 completions_count = 3;
-}
+  message SurveySummary {
+    string survey_id = 1 [(validate.rules).string.uuid = true];
+    string title = 2;
+    int32 completions_count = 3;
+  }
 
-message StartSessionRequest {
-  string survey_id = 1 [(validate.rules).string.uuid = true];
-  string client_metadata_json = 2;
-}
+  message StartSessionRequest {
+    string survey_id = 1 [(validate.rules).string.uuid = true];
+    string client_metadata_json = 2;
+  }
 
-message StartSessionResponse {
-  string session_id = 1;
-  QuestionClientView first_question = 2;
-}
+  message StartSessionResponse {
+    string session_id = 1;
+    QuestionClientView first_question = 2;
+  }
 
-// Структура для клиента (строго изолирована от логики и баллов)
-message QuestionClientView {
-  string question_id = 1;
-  QuestionType type = 2;
-  string text = 3;
-  repeated AnswerClientView answers = 4;
-}
+  // Структура для клиента (строго изолирована от логики и баллов)
+  message QuestionClientView {
+    string question_id = 1;
+    QuestionType type = 2;
+    string text = 3;
+    repeated AnswerClientView answers = 4;
+  }
 
-message AnswerClientView {
-  string answer_id = 1;
-  string text = 2;
-}
+  message AnswerClientView {
+    string answer_id = 1;
+    string text = 2;
+  }
 
-message SubmitAnswerRequest {
-  string session_id = 1 [(validate.rules).string.uuid = true];
-  string question_id = 2 [(validate.rules).string.uuid = true];
-  string answer_id = 3 [(validate.rules).string.uuid = true];
-  string raw_text = 4;
-}
+  message SubmitAnswerRequest {
+    string session_id = 1 [(validate.rules).string.uuid = true];
+    string question_id = 2 [(validate.rules).string.uuid = true];
+    string answer_id = 3 [(validate.rules).string.uuid = true];
+    string raw_text = 4;
+  }
 
-message SubmitAnswerResponse {
-  bool is_completed = 1;
-  QuestionClientView next_question = 2;
-  int32 progress_percentage = 3;
-}
+  message SubmitAnswerResponse {
+    bool is_completed = 1;
+    QuestionClientView next_question = 2;
+    int32 progress_percentage = 3;
+  }
 
-// =====================================================================
-// СООБЩЕНИЯ: Интеграция с Python ML
-// =====================================================================
+  // =====================================================================
+  // СООБЩЕНИЯ: Интеграция с Python ML
+  // =====================================================================
 
-message GetSessionDataRequest {
-  string session_id = 1 [(validate.rules).string.uuid = true];
-}
+  message GetSessionDataRequest {
+    string session_id = 1 [(validate.rules).string.uuid = true];
+  }
 
-message SessionAnalyticsResponse {
-  string survey_id = 1;
-  string session_id = 2;
-  string client_metadata_json = 3;
-  repeated RawClientResponse responses = 4;
-}
+  message SessionAnalyticsResponse {
+    string survey_id = 1;
+    string session_id = 2;
+    string client_metadata_json = 3;
+    repeated RawClientResponse responses = 4;
+  }
 
-// Обогащенные данные для расчетов метрик и генерации DOCX/HTML
-message RawClientResponse {
-  string question_id = 1;
-  QuestionType question_type = 2;
-  string question_text = 3;
-  double selected_weight = 4;     // Балл, который реально получил клиент
-  string category_tag = 5;        // Ключ для группировки
-  string raw_text = 6;            // Текст, если вопрос был открытым
-}
+  // Обогащенные данные для расчетов метрик и генерации DOCX/HTML
+  message RawClientResponse {
+    string question_id = 1;
+    QuestionType question_type = 2;
+    string question_text = 3;
+    double selected_weight = 4;     // Балл, который реально получил клиент
+    string category_tag = 5;        // Ключ для группировки
+    string raw_text = 6;            // Текст, если вопрос был открытым
+  }

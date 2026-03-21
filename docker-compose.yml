@@ -1,7 +1,7 @@
-version: "3.9"
-
 services:
   postgres_engine:
+    ports:
+      - "5432:5432"
     image: postgres:16-alpine
     networks:
       - hack-net
@@ -16,7 +16,19 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-
+  migrations:
+    image: migrate/migrate
+    networks:
+      - hack-net
+    volumes:
+      - ${PWD}/services/engine-go/migrations:/migrations
+    command:
+      - -path=/migrations/
+      - -database=postgres://${ENGINE_PG_USER}:${ENGINE_PG_PASSWORD}@postgres_engine:5432/${ENGINE_PG_DATABASE}?sslmode=disable
+      - up
+    depends_on:
+      postgres_engine:
+        condition: service_healthy
   test-engine:
     build:
       context: .
@@ -29,6 +41,8 @@ services:
     environment:
       APP_ENV: development
     env_file: services/engine-go/.env
+    ports:
+      - "50036:50036"
     volumes:
       - ./certs/ca.crt:/etc/certs/ca.crt:ro
       - ./certs/server.crt:/etc/certs/server.crt:ro

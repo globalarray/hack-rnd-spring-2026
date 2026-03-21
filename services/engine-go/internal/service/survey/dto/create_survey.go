@@ -17,6 +17,7 @@ type QuestionInput struct {
 }
 
 type AnswerInput struct {
+	ID          string
 	Text        string
 	Weight      float64
 	CategoryTag string

@@ -57,7 +57,7 @@ func (s SurveySettingMap) validateUI() error {
 	}
 
 	if theme, ok := group[UITheme].(string); ok {
-		if _, ok := validThemes[theme]; ok {
+		if _, ok := validThemes[theme]; !ok {
 			return fmt.Errorf("invalid theme: %s", theme)
 		}
 	}

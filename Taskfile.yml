@@ -33,18 +33,40 @@ tasks:
       - touch "{{.OUTPUT}}/{{.FILENAME}}.up.sql"
       - touch "{{.OUTPUT}}/{{.FILENAME}}.down.sql"
   gen-certs:
-    desc: "Генерирует сертификаты для обеспечения mTLS между микросервисами"
+    desc: "Генерирует сертификаты с поддержкой SAN (127.0.0.1) для mTLS"
     requires:
-      vars: [OUTPUT]
+      vars: [ OUTPUT ]
     cmds:
       - mkdir -p {{.OUTPUT}}
+      # 1. Генерация Root CA
       - openssl genrsa -out {{.OUTPUT}}/ca.key 4096
       - openssl req -new -x509 -key {{.OUTPUT}}/ca.key -sha256 -subj "/C=RU/ST=MSK/O=BenzoProfDNK/CN=RootCA" -days 365 -out {{.OUTPUT}}/ca.crt
+
+      # 2. Создание файла конфигурации расширений (SAN)
+      # Это ключевой момент для работы с 127.0.0.1
+      - |
+        printf "authorityKeyIdentifier=keyid,issuer\n\
+        basicConstraints=CA:FALSE\n\
+        keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment\n\
+        subjectAltName = @alt_names\n\
+        [alt_names]\n\
+        DNS.1 = localhost\n\
+        DNS.2 = testengine\n\
+        IP.1 = 127.0.0.1" > {{.OUTPUT}}/ext.cnf
+
+      # 3. Генерация Server сертификата
       - echo -e "Generating server.csr"
       - openssl genrsa -out {{.OUTPUT}}/server.key 2048
       - openssl req -new -key {{.OUTPUT}}/server.key -subj "/C=RU/ST=MSK/O=BenzoProfDNK/CN=testengine" -out {{.OUTPUT}}/server.csr
-      - openssl x509 -req -in {{.OUTPUT}}/server.csr -CA {{.OUTPUT}}/ca.crt -CAkey {{.OUTPUT}}/ca.key -CAcreateserial -out {{.OUTPUT}}/server.crt -days 365 -sha256
+      # Подписываем с использованием extfile
+      - openssl x509 -req -in {{.OUTPUT}}/server.csr -CA {{.OUTPUT}}/ca.crt -CAkey {{.OUTPUT}}/ca.key -CAcreateserial -out {{.OUTPUT}}/server.crt -days 365 -sha256 -extfile {{.OUTPUT}}/ext.cnf
+
+      # 4. Генерация Client сертификата (для Postman / PHP-BFF)
       - echo -e "Generating client.csr"
       - openssl genrsa -out {{.OUTPUT}}/client.key 2048
       - openssl req -new -key {{.OUTPUT}}/client.key -subj "/C=RU/ST=MSK/O=BenzoProfDNK/CN=php-bff" -out {{.OUTPUT}}/client.csr
-      - openssl x509 -req -in {{.OUTPUT}}/client.csr -CA {{.OUTPUT}}/ca.crt -CAkey {{.OUTPUT}}/ca.key -CAcreateserial -out {{.OUTPUT}}/client.crt -days 365 -sha256
+      # Для клиента тоже добавляем SAN, чтобы он мог быть валидирован по IP
+      - openssl x509 -req -in {{.OUTPUT}}/client.csr -CA {{.OUTPUT}}/ca.crt -CAkey {{.OUTPUT}}/ca.key -CAcreateserial -out {{.OUTPUT}}/client.crt -days 365 -sha256 -extfile {{.OUTPUT}}/ext.cnf
+
+      # Чистим временный конфиг
+      - rm {{.OUTPUT}}/ext.cnf
