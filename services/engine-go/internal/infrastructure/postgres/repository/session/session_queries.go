@@ -16,3 +16,9 @@ var queryGetSessionState string
 
 //go:embed sql/close_session.sql
 var queryCloseSession string
+
+//go:embed sql/has_active_session.sql
+var queryHasActiveSession string
+
+//go:embed sql/insert_response.sql
+var queryInsertResponse string

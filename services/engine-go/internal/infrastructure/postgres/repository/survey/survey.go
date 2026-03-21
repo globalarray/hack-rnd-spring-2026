@@ -72,6 +72,26 @@ func (r *surveyRepository) SaveFull(ctx context.Context, in *servicedto.CreateSu
 	return surveyUUID, nil
 }
 
+func (r *surveyRepository) ListByPsychologist(ctx context.Context, psychologistID string) ([]servicedto.SurveySummary, error) {
+	const op = "surveyRepository.ListByPsychologist"
+
+	var records []dto.SurveySummaryRecord
+	if err := r.db.SelectContext(ctx, &records, queryListSurveys, psychologistID); err != nil {
+		return nil, fmt.Errorf("%s: list surveys: %w", op, err)
+	}
+
+	surveys := make([]servicedto.SurveySummary, len(records))
+	for i, record := range records {
+		surveys[i] = servicedto.SurveySummary{
+			SurveyID:         record.SurveyID,
+			Title:            record.Title,
+			CompletionsCount: record.CompletionsCount,
+		}
+	}
+
+	return surveys, nil
+}
+
 func (r *surveyRepository) GetQuestionByOrderAndSurvey(ctx context.Context, surveyID uuid.UUID, orderNumber int) (*question.Question, error) {
 	const op = "surveyRepository.GetQuestionByOrderAndSurvey"
 
@@ -93,15 +113,42 @@ func (r *surveyRepository) NextQuestionByOrder(ctx context.Context, surveyID str
 	return nextID, err
 }
 
+func (r *surveyRepository) QuestionByID(ctx context.Context, qID string) (*question.Question, error) {
+	const op = "surveyRepository.QuestionByID"
+
+	var record struct {
+		ID          string `db:"id"`
+		OrderNumber int    `db:"order_num"`
+		Type        int    `db:"type"`
+		Text        string `db:"text"`
+		LogicRules  string `db:"logic_rules"`
+	}
+
+	if err := r.db.GetContext(ctx, &record, querySelectQuestionByID, qID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("%s: question not found: %w", op, domain.ErrNotFound)
+		}
+		return nil, fmt.Errorf("%s: execute query: %w", op, err)
+	}
+
+	questionRecord := dto.QuestionRecord{
+		OrderNumber: record.OrderNumber,
+		Type:        record.Type,
+		Text:        record.Text,
+		LogicRules:  record.LogicRules,
+		AnswersJSON: "[]",
+	}
+	questionRecord.ID = uuid.MustParse(record.ID)
+
+	return mapQuestionRecordToQuestion(questionRecord)
+}
+
 func (r *surveyRepository) QuestionWithAnswer(ctx context.Context, qID, aID string) (*question.Question, *answer.Answer, error) {
 	const op = "surveyRepository.QuestionWithAnswer"
 
-	var res struct {
-		Question question.Question `db:"q"`
-		Answer   answer.Answer     `db:"a"`
-	}
+	var record dto.QuestionWithAnswerRecord
 
-	err := r.db.GetContext(ctx, &res, querySelectQuestionWithAnswer, qID, aID)
+	err := r.db.GetContext(ctx, &record, querySelectQuestionWithAnswer, qID, aID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil, fmt.Errorf("%s: pair not found: %w", op, domain.ErrNotFound)
@@ -109,5 +156,24 @@ func (r *surveyRepository) QuestionWithAnswer(ctx context.Context, qID, aID stri
 		return nil, nil, fmt.Errorf("%s: execute query: %w", op, err)
 	}
 
-	return &res.Question, &res.Answer, nil
+	q, err := mapQuestionRecordToQuestion(dto.QuestionRecord{
+		ID:          uuid.MustParse(record.ID),
+		OrderNumber: record.OrderNumber,
+		Type:        record.Type,
+		Text:        record.Text,
+		LogicRules:  record.LogicRules,
+		AnswersJSON: "[]",
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("%s: map question: %w", op, err)
+	}
+
+	ans := &answer.Answer{
+		ID:          record.AnswerID,
+		Text:        record.AnswerText,
+		Weight:      record.Weight,
+		CategoryTag: record.CategoryTag,
+	}
+
+	return q, ans, nil
 }

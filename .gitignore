@@ -1,3 +1,5 @@
 .env
 certs
 .idea
+.pycache
+.gocache

@@ -1,0 +1,29 @@
+package analytics
+
+import (
+	"context"
+	"fmt"
+
+	"sourcecraft.dev/benzo/testengine/internal/service/analytics/dto"
+)
+
+type analyticsRepository interface {
+	GetSessionData(ctx context.Context, sessionID string) (*dto.GetSessionDataOutput, error)
+}
+
+type service struct {
+	repo analyticsRepository
+}
+
+func NewAnalyticsService(repo analyticsRepository) *service {
+	return &service{repo: repo}
+}
+
+func (s *service) GetSessionData(ctx context.Context, input *dto.GetSessionDataInput) (*dto.GetSessionDataOutput, error) {
+	data, err := s.repo.GetSessionData(ctx, input.SessionID)
+	if err != nil {
+		return nil, fmt.Errorf("analytics.GetSessionData: %w", err)
+	}
+
+	return data, nil
+}

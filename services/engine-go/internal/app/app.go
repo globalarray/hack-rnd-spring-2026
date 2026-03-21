@@ -10,10 +10,13 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
+	analyticsHandler "sourcecraft.dev/benzo/testengine/internal/delivery/grpc/analytics"
 	sessionHandler "sourcecraft.dev/benzo/testengine/internal/delivery/grpc/session"
 	surveyHandler "sourcecraft.dev/benzo/testengine/internal/delivery/grpc/survey"
+	analyticsRepo "sourcecraft.dev/benzo/testengine/internal/infrastructure/postgres/repository/analytics"
 	sessionRepo "sourcecraft.dev/benzo/testengine/internal/infrastructure/postgres/repository/session"
 	surveyRepo "sourcecraft.dev/benzo/testengine/internal/infrastructure/postgres/repository/survey"
+	analyticsService "sourcecraft.dev/benzo/testengine/internal/service/analytics"
 	"sourcecraft.dev/benzo/testengine/internal/service/session"
 
 	"github.com/jmoiron/sqlx"
@@ -53,9 +56,11 @@ func New(log *slog.Logger, cfg config.Config) (*App, error) {
 	}
 
 	sRepo := surveyRepo.NewSurveyRepository(log, db)
+	aRepo := analyticsRepo.NewAnalyticsRepository(log, db)
 
 	surveyHandler.RegisterSurveyAdminServiceServer(grpcServer, log, survey.NewSurveyService(sRepo))
 	sessionHandler.RegisterSessionClientServer(grpcServer, log, session.NewSessionService(log, sessionRepo.NewSessionRepository(log, db), sRepo))
+	analyticsHandler.RegisterAnalyticsServiceServer(grpcServer, log, analyticsService.NewAnalyticsService(aRepo))
 
 	return &App{log: log, cfg: cfg, grpcServer: grpcServer, db: db}, nil
 }

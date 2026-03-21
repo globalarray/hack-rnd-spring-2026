@@ -3,11 +3,11 @@ package dto
 import "time"
 
 type SessionRecord struct {
-	ID               string
-	CurrentRequestID string
-	SurveyID         string
-	Metadata         string
-	Status           string
-	StartedAt        time.Time
-	CompletedAt      time.Time
+	ID               string    `db:"id"`
+	CurrentRequestID string    `db:"current_question_id"`
+	SurveyID         string    `db:"survey_id"`
+	Metadata         string    `db:"client_metadata"`
+	Status           string    `db:"status"`
+	StartedAt        time.Time `db:"started_at"`
+	CompletedAt      time.Time `db:"completed_at"`
 }

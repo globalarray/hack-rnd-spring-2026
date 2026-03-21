@@ -10,6 +10,7 @@ import (
 
 type surveyRepository interface {
 	SaveFull(ctx context.Context, in *dto.CreateSurveyInput) (string, error)
+	ListByPsychologist(ctx context.Context, psychologistID string) ([]dto.SurveySummary, error)
 }
 
 type service struct {
@@ -37,4 +38,13 @@ func (s *service) Create(ctx context.Context, input *dto.CreateSurveyInput) (uui
 	}
 
 	return uuid, nil
+}
+
+func (s *service) List(ctx context.Context, input *dto.ListSurveysInput) (*dto.ListSurveysOutput, error) {
+	surveys, err := s.repo.ListByPsychologist(ctx, input.PsychologistID)
+	if err != nil {
+		return nil, fmt.Errorf("cannot list surveys: %w", err)
+	}
+
+	return &dto.ListSurveysOutput{Surveys: surveys}, nil
 }

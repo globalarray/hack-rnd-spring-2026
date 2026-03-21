@@ -90,7 +90,7 @@
   }
 
   message GetSessionCurrentQuestionRequest {
-    string session_id = 1;
+    string session_id = 1 [(validate.rules).string.uuid = true];;
   }
 
   // Структура для клиента (строго изолирована от логики и баллов)

@@ -57,3 +57,16 @@ func mapCreateSurveyRequestToInput(req *pb.CreateSurveyRequest) (*dto.CreateSurv
 		Questions:      questions,
 	}, nil
 }
+
+func mapListSurveysOutput(out *dto.ListSurveysOutput) *pb.ListSurveysResponse {
+	surveys := make([]*pb.SurveySummary, len(out.Surveys))
+	for i, survey := range out.Surveys {
+		surveys[i] = &pb.SurveySummary{
+			SurveyId:         survey.SurveyID,
+			Title:            survey.Title,
+			CompletionsCount: survey.CompletionsCount,
+		}
+	}
+
+	return &pb.ListSurveysResponse{Surveys: surveys}
+}

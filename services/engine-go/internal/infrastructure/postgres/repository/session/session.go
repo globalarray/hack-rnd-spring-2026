@@ -24,13 +24,23 @@ func NewSessionRepository(log *slog.Logger, db *sqlx.DB) *sessionRepository {
 	return &sessionRepository{log: log, db: db}
 }
 
+func normalizeClientMetadata(raw string) string {
+	if raw == "" {
+		return "{}"
+	}
+
+	return raw
+}
+
 func (repo *sessionRepository) Create(ctx context.Context, input *servicedto.StartSessionInput) (sessionID string, err error) {
 	const op = "sessionRepository.Create"
+
+	clientMetadata := normalizeClientMetadata(input.ClientMetadataRaw)
 
 	if err := repo.db.QueryRowContext(ctx, queryInsertSession,
 		input.SurveyID,
 		session.CreatedStatus,
-		"{}",
+		clientMetadata,
 	).Scan(&sessionID); err != nil {
 		return "", fmt.Errorf("%s: failed to insert session: %w", op, err)
 	}
@@ -38,12 +48,24 @@ func (repo *sessionRepository) Create(ctx context.Context, input *servicedto.Sta
 	return sessionID, nil
 }
 
+func (repo *sessionRepository) HasActiveSession(ctx context.Context, input *servicedto.StartSessionInput) (bool, error) {
+	const op = "sessionRepository.HasActiveSession"
+
+	var exists bool
+
+	if err := repo.db.GetContext(ctx, &exists, queryHasActiveSession, input.SurveyID, normalizeClientMetadata(input.ClientMetadataRaw)); err != nil {
+		return false, fmt.Errorf("%s: check active session: %w", op, err)
+	}
+
+	return exists, nil
+}
+
 func (repo *sessionRepository) CurrentQuestion(ctx context.Context, sessionID string) (*question.Question, error) {
 	const op = "sessionRepository.GetCurrentQuestion"
 
-	var q question.Question
+	var record dto.CurrentQuestionRecord
 
-	err := repo.db.GetContext(ctx, &q, queryGetCurrentQuestionBySessionID, sessionID)
+	err := repo.db.GetContext(ctx, &record, queryGetCurrentQuestionBySessionID, sessionID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("%s: %w", op, domain.ErrNotFound)
@@ -51,22 +73,30 @@ func (repo *sessionRepository) CurrentQuestion(ctx context.Context, sessionID st
 		return nil, fmt.Errorf("%s: failed to get current question: %w", op, err)
 	}
 
-	return &q, nil
+	q, err := mapCurrentQuestionRecordToDomain(&record)
+	if err != nil {
+		return nil, fmt.Errorf("%s: map current question: %w", op, err)
+	}
+
+	return q, nil
 }
 
 func (repo *sessionRepository) SaveResponseAndUpdateState(ctx context.Context, data session.ResponseUpdate) error {
 	const op = "sessionRepository.SaveResponseAndUpdateState"
 
 	tx, err := repo.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("%s: failed to start transaction: %w", op, err)
+	}
 
 	defer func() {
-		if rollBackErr := tx.Rollback(); rollBackErr != nil {
+		if rollBackErr := tx.Rollback(); rollBackErr != nil && !errors.Is(rollBackErr, sql.ErrTxDone) {
 			err = rollBackErr
 		}
 	}()
 
-	if err != nil {
-		return fmt.Errorf("%s: failed to start transaction: %w", op, err)
+	if _, err := tx.ExecContext(ctx, queryInsertResponse, data.SessionID, data.QuestionID, data.AnswerID, data.RawText); err != nil {
+		return fmt.Errorf("%s: insert response: %w", op, err)
 	}
 
 	status := session.InProgressStatus
@@ -74,25 +104,21 @@ func (repo *sessionRepository) SaveResponseAndUpdateState(ctx context.Context, d
 		status = session.CompletedStatus
 	}
 
-	res, err := tx.ExecContext(ctx, queryInsertSession, data.SessionID, data.QuestionID, data.AnswerID)
-
+	res, err := tx.ExecContext(ctx, queryUpdateSession, data.NextQuestionID, status, data.IsFinished, data.SessionID, data.ExpectedCurrentQuestionID)
 	if err != nil {
-		return err
+		return fmt.Errorf("%s: update session: %w", op, err)
 	}
 
-	rows, _ := res.RowsAffected()
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("%s: rows affected: %w", op, err)
+	}
 	if rows == 0 {
-		// Если 0 строк, значит либо сессии нет, либо на этот вопрос уже ответили
-		// Возвращаем кастомную ошибку, чтобы сервис понял: это дубликат
 		return domain.ErrConflict
 	}
 
-	if _, err := tx.ExecContext(ctx, queryUpdateSession, data.NextQuestionID, status, data.IsFinished, data.SessionID); err != nil {
-		return err
-	}
-
 	if err := tx.Commit(); err != nil {
-		return err
+		return fmt.Errorf("%s: commit transaction: %w", op, err)
 	}
 
 	return nil

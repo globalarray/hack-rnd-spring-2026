@@ -13,3 +13,6 @@ var querySelectNextOrderNum string
 
 //go:embed sql/question/get_question_with_answer.sql
 var querySelectQuestionWithAnswer string
+
+//go:embed sql/question/get_question_by_id.sql
+var querySelectQuestionByID string

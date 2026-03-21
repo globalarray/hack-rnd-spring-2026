@@ -17,6 +17,7 @@ import (
 
 type sessionRepo interface {
 	Create(ctx context.Context, input *dto.StartSessionInput) (string, error)
+	HasActiveSession(ctx context.Context, input *dto.StartSessionInput) (bool, error)
 	CurrentQuestion(ctx context.Context, sessionID string) (*question.Question, error)
 	SessionState(ctx context.Context, sessionID string) (*session.State, error)
 	Close(ctx context.Context, sessionID string, status session.SessionStatus) error
@@ -25,6 +26,7 @@ type sessionRepo interface {
 
 type surveyRepo interface {
 	QuestionWithAnswer(ctx context.Context, questionID, answerID string) (*question.Question, *answer.Answer, error)
+	QuestionByID(ctx context.Context, questionID string) (*question.Question, error)
 	NextQuestionByOrder(ctx context.Context, serveyID string, currentOrder int) (string, error)
 }
 
@@ -45,6 +47,14 @@ func (s *service) Start(ctx context.Context, input *dto.StartSessionInput) (*dto
 		slog.String("op", op),
 		slog.String("survey_id", input.SurveyID),
 	)
+
+	hasActiveSession, err := s.repo.HasActiveSession(ctx, input)
+	if err != nil {
+		return nil, fmt.Errorf("%s: check active session: %w", op, err)
+	}
+	if hasActiveSession {
+		return nil, fmt.Errorf("%s: %w", op, domain.ErrConflict)
+	}
 
 	sessionID, err := s.repo.Create(ctx, input)
 	if err != nil {
@@ -116,9 +126,25 @@ func (s *service) SubmitAnswer(ctx context.Context, input dto.SubmitAnswerInput)
 		return nil, fmt.Errorf("%s: %w", op, domain.ErrTimeLimitExceeded)
 	}
 
-	q, ans, err := s.surveyRepo.QuestionWithAnswer(ctx, input.QuestionID, input.AnswerID)
-	if err != nil {
-		return nil, fmt.Errorf("%s: validate question and answer: %w", op, err)
+	var (
+		q   *question.Question
+		ans *answer.Answer
+	)
+
+	switch {
+	case input.AnswerID != "":
+		q, ans, err = s.surveyRepo.QuestionWithAnswer(ctx, input.QuestionID, input.AnswerID)
+		if err != nil {
+			return nil, fmt.Errorf("%s: validate question and answer: %w", op, err)
+		}
+	case input.RawText != "":
+		q, err = s.surveyRepo.QuestionByID(ctx, input.QuestionID)
+		if err != nil {
+			return nil, fmt.Errorf("%s: validate question: %w", op, err)
+		}
+		ans = &answer.Answer{}
+	default:
+		return nil, fmt.Errorf("%s: empty answer payload", op)
 	}
 
 	nextLinearID, err := s.surveyRepo.NextQuestionByOrder(ctx, sess.SurveyID, q.OrderNumber)
@@ -136,9 +162,15 @@ func (s *service) SubmitAnswer(ctx context.Context, input dto.SubmitAnswerInput)
 		SessionID:                 input.SessionID,
 		ExpectedCurrentQuestionID: input.QuestionID, // Проверяем, что юзер не "перескочил" вопрос
 		QuestionID:                input.QuestionID,
-		AnswerID:                  &input.AnswerID,
 		Weight:                    ans.Weight,
 		IsFinished:                isFinished,
+	}
+
+	if input.AnswerID != "" {
+		update.AnswerID = &input.AnswerID
+	}
+	if input.RawText != "" {
+		update.RawText = &input.RawText
 	}
 
 	if nextID != "" {

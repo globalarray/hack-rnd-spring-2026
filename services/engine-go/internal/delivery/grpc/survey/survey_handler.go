@@ -20,6 +20,7 @@ type surveyHandler struct {
 
 type surveyService interface {
 	Create(ctx context.Context, input *dto.CreateSurveyInput) (string, error)
+	List(ctx context.Context, input *dto.ListSurveysInput) (*dto.ListSurveysOutput, error)
 }
 
 func RegisterSurveyAdminServiceServer(grpcServer *grpc.Server, log *slog.Logger, service surveyService) {
@@ -50,4 +51,17 @@ func (sh *surveyHandler) CreateSurvey(ctx context.Context, req *pb.CreateSurveyR
 	return &pb.CreateSurveyResponse{
 		SurveyId: uuid,
 	}, nil
+}
+
+func (sh *surveyHandler) ListSurveys(ctx context.Context, req *pb.ListSurveysRequest) (*pb.ListSurveysResponse, error) {
+	if err := req.Validate(); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	out, err := sh.service.List(ctx, &dto.ListSurveysInput{PsychologistID: req.PsychologistId})
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	return mapListSurveysOutput(out), nil
 }

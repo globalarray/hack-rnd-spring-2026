@@ -2,15 +2,15 @@ import grpc
 import json
 from concurrent import futures
 from datetime import datetime, timedelta
-import test_engine_pb2 as pb
-import test_engine_pb2_grpc as pb_grpc
+import analytics_pb2 as pb
+import analytics_pb2_grpc as pb_grpc
 from report_generator import render_any_report
 
 
 class AnalyticsService(pb_grpc.AnalyticsServiceServicer):
     def GenerateReport(self, request, context):
         try:
-            meta = json.loads(request.client_metadata_json) if request.client_metadata_json else {}
+            meta = {}
             categories = ['Аналитика', 'Код', 'Дизайн', 'Тесты', 'Менеджмент']
             cat_map = {c: [] for c in categories}
 
@@ -19,7 +19,8 @@ class AnalyticsService(pb_grpc.AnalyticsServiceServicer):
 
             # 1. Сбор сырых данных
             for i, r in enumerate(request.responses, 1):
-                cat_map[r.category_tag].append(r.selected_weight)
+                if r.category_tag in cat_map:
+                    cat_map[r.category_tag].append(r.selected_weight)
 
                 # Текст ответа на основе веса (для 2-й ячейки в таблице психолога)
                 answer_text = r.raw_text if r.raw_text else self._weight_to_text(r.selected_weight)
@@ -97,9 +98,13 @@ class AnalyticsService(pb_grpc.AnalyticsServiceServicer):
                 "support_email": "support@profdnk.ru"
             }
 
-            is_html = b'<html' in request.template_content.lower()
-            file_bytes = render_any_report(request.template_content, full_data, "res.html" if is_html else "res.docx")
-            return pb.GenerateReportResponse(file_content=file_bytes)
+            template_bytes, file_name, content_type = self._resolve_template(request.format)
+            file_bytes = render_any_report(template_bytes, full_data, file_name)
+            return pb.GenerateReportResponse(
+                file_content=file_bytes,
+                content_type=content_type,
+                suggested_filename=file_name,
+            )
 
         except Exception as e:
             print(f"Server error: {e}")
@@ -115,6 +120,19 @@ class AnalyticsService(pb_grpc.AnalyticsServiceServicer):
             1: "Не владею / Не знаю"
         }
         return mapping.get(int(weight), "Нет данных")
+
+    def _resolve_template(self, report_format):
+        if report_format == pb.REPORT_FORMAT_HTML:
+            return self._read_file("report_template.html"), "report.html", "text/html; charset=utf-8"
+        if report_format == pb.REPORT_FORMAT_PSYCHO_HTML:
+            return self._read_file("report_for_psychologist.html"), "psychologist-report.html", "text/html; charset=utf-8"
+        if report_format == pb.REPORT_FORMAT_PSYCHO_DOCX:
+            return self._read_file("template_psychologist.docx"), "psychologist-report.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        return self._read_file("template_client01.docx"), "client-report.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+    def _read_file(self, path):
+        with open(path, "rb") as f:
+            return f.read()
 
 
 def serve():
