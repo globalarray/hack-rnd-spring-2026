@@ -6,8 +6,11 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
-	"sourcecraft.dev/benzo/testengine/internal/service/survey/dto"
+	"sourcecraft.dev/benzo/testengine/internal/domain/models/question"
+	"sourcecraft.dev/benzo/testengine/internal/infrastructure/postgres/repository/dto"
+	servicedto "sourcecraft.dev/benzo/testengine/internal/service/survey/dto"
 )
 
 type surveyRepository struct {
@@ -24,7 +27,7 @@ func NewSurveyRepository(log *slog.Logger, db *sqlx.DB) *surveyRepository {
 	}
 }
 
-func (r *surveyRepository) CreateFull(ctx context.Context, in *dto.CreateSurveyInput) (surveyUUID string, err error) {
+func (r *surveyRepository) SaveFull(ctx context.Context, in *servicedto.CreateSurveyInput) (surveyUUID string, err error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 
 	defer cancel()
@@ -64,4 +67,17 @@ func (r *surveyRepository) CreateFull(ctx context.Context, in *dto.CreateSurveyI
 	}
 
 	return surveyUUID, nil
+}
+
+func (r *surveyRepository) GetQuestionByOrderAndSurvey(ctx context.Context, surveyID uuid.UUID, orderNumber int) (q question.Question, err error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	var questionRow dto.QuestionRecord
+
+	if err := r.db.GetContext(ctx, &questionRow, querySelectQuestionWithAnswers, surveyID, orderNumber); err != nil {
+		return q, fmt.Errorf("select question: %w", err)
+	}
+
+	return mapQuestionRecordToQuestion(questionRow), nil
 }

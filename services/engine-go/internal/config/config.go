@@ -75,7 +75,7 @@ func Load(path string) (Config, error) {
 		}
 	} else {
 		l := log.New(cfg.Log.Level, cfg.Log.TimeFormat)
-		l.Warn("Config file not found or path is wrong, relying on environment variables")
+		l.Warn("config file not found or path is wrong, relying on environment variables")
 	}
 
 	if err := cleanenv.ReadEnv(&cfg); err != nil {
@@ -83,14 +83,6 @@ func Load(path string) (Config, error) {
 	}
 
 	return cfg, nil
-}
-
-func applyEnvVariables(cfg *Config) error {
-	if os.Getenv("APP_ENV") != "production" {
-		_ = godotenv.Load()
-	}
-
-	return cleanenv.ReadEnv(cfg)
 }
 
 func (pgCfg PostgresConfig) DSN() string {

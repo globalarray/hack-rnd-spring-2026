@@ -1,4 +1,4 @@
-package models
+package survey
 
 const (
 	DefaultUITheme = "dark"

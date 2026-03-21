@@ -22,12 +22,8 @@ type surveyService interface {
 	Create(ctx context.Context, input *dto.CreateSurveyInput) (string, error)
 }
 
-func NewSurveyHandler(log *slog.Logger, service surveyService) *surveyHandler {
-	return &surveyHandler{log: log, service: service}
-}
-
-func RegisterSurveyAdminServiceServer(grpcServer *grpc.Server) {
-	pb.RegisterSurveyAdminServiceServer(grpcServer, &surveyHandler{})
+func RegisterSurveyAdminServiceServer(grpcServer *grpc.Server, log *slog.Logger, service surveyService) {
+	pb.RegisterSurveyAdminServiceServer(grpcServer, &surveyHandler{log: log, service: service})
 }
 
 func (sh *surveyHandler) CreateSurvey(ctx context.Context, req *pb.CreateSurveyRequest) (*pb.CreateSurveyResponse, error) {

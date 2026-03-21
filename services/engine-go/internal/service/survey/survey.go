@@ -12,15 +12,15 @@ type surveyRepository interface {
 	SaveFull(ctx context.Context, in *dto.CreateSurveyInput) (string, error)
 }
 
-type surveyService struct {
+type service struct {
 	repo surveyRepository
 }
 
-func NewSurvey(repo surveyRepository) *surveyService {
-	return &surveyService{repo: repo}
+func NewSurveyService(repo surveyRepository) *service {
+	return &service{repo: repo}
 }
 
-func (s *surveyService) CreateFull(ctx context.Context, input *dto.CreateSurveyInput) (uuid string, err error) {
+func (s *service) Create(ctx context.Context, input *dto.CreateSurveyInput) (uuid string, err error) {
 	settingsMap, err := domain.ParseSettings(input.Settings)
 
 	if err != nil {

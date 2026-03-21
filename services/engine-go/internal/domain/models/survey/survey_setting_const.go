@@ -1,4 +1,4 @@
-package models
+package survey
 
 // Ключи для группы Privacy
 const (

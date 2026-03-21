@@ -6,8 +6,15 @@ import (
 	"log/slog"
 	"net"
 	"path/filepath"
+	"sync"
+	"time"
 
+	_ "github.com/lib/pq"
+
+	"github.com/jmoiron/sqlx"
 	transport "sourcecraft.dev/benzo/testengine/internal/delivery/grpc"
+	"sourcecraft.dev/benzo/testengine/internal/infrastructure/postgres/repository"
+	"sourcecraft.dev/benzo/testengine/internal/service/survey"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
 	"google.golang.org/grpc"
@@ -21,6 +28,7 @@ type App struct {
 	cfg config.Config
 
 	grpcServer *grpc.Server
+	db         *sqlx.DB
 }
 
 func New(log *slog.Logger, cfg config.Config) (*App, error) {
@@ -35,12 +43,25 @@ func New(log *slog.Logger, cfg config.Config) (*App, error) {
 		grpc.Creds(credentials.NewTLS(tlsCfg)),
 	)
 
-	transport.RegisterSurveyAdminServiceServer(grpcServer)
+	db, err := sqlx.Open("postgres", cfg.Postgres.DSN())
 
-	return &App{log: log, cfg: cfg, grpcServer: grpcServer}, nil
+	if err != nil {
+		return nil, fmt.Errorf("could not connect to postgres: %w", err)
+	}
+
+	transport.RegisterSurveyAdminServiceServer(grpcServer, log, survey.NewSurveyService(repository.NewSurveyRepository(log, db)))
+
+	return &App{log: log, cfg: cfg, grpcServer: grpcServer, db: db}, nil
 }
 
 func (a *App) Start(ctx context.Context) error {
+	pingCtx, pingCancel := context.WithTimeout(ctx, 3*time.Second)
+	defer pingCancel()
+
+	if err := a.db.PingContext(pingCtx); err != nil {
+		return fmt.Errorf("could not connect to postgres %w", err)
+	}
+
 	if err := a.startGRPCServer(ctx); err != nil {
 		return err
 	}
@@ -59,6 +80,8 @@ func (a *App) startGRPCServer(ctx context.Context) error {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
+	a.log.With(slog.String("addr", fmt.Sprintf("::%d", a.cfg.Port))).Info("listening grpc endpoint")
+
 	if err := a.grpcServer.Serve(l); err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
@@ -66,12 +89,29 @@ func (a *App) startGRPCServer(ctx context.Context) error {
 	return nil
 }
 
-func (a *App) Shutdown(ctx context.Context) error {
+func (a *App) Shutdown(ctx context.Context) (err error) {
 	ch := make(chan struct{})
 
-	go func() {
-		a.grpcServer.GracefulStop()
+	var wg sync.WaitGroup
 
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+
+		if dbErr := a.db.Close(); dbErr != nil {
+			err = dbErr
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		a.grpcServer.GracefulStop()
+	}()
+
+	go func() {
+		wg.Wait()
 		close(ch)
 	}()
 
@@ -80,6 +120,6 @@ func (a *App) Shutdown(ctx context.Context) error {
 		a.grpcServer.Stop()
 		return ctx.Err()
 	case <-ch:
-		return nil
+		return err
 	}
 }

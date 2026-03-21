@@ -3,6 +3,8 @@ version: "3.9"
 services:
   postgres_engine:
     image: postgres:16-alpine
+    networks:
+      - hack-net
     environment:
       POSTGRES_USER: ${ENGINE_PG_USER}
       POSTGRES_PASSWORD: ${ENGINE_PG_PASSWORD}
@@ -19,6 +21,8 @@ services:
     build:
       context: .
       dockerfile: services/engine-go/Dockerfile
+    networks:
+      - hack-net
     depends_on:
       postgres_engine:
         condition: service_healthy
@@ -29,5 +33,8 @@ services:
       - ./certs/ca.crt:/etc/certs/ca.crt:ro
       - ./certs/server.crt:/etc/certs/server.crt:ro
       - ./certs/server.key:/etc/certs/server.key:ro
+networks:
+  hack-net:
+    driver: bridge
 volumes:
   engine_pgdata:

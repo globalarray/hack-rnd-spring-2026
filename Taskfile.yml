@@ -5,6 +5,17 @@ tasks:
     desc: "Запуск сервиса с подгрузкой нужного .env"
     cmds:
       - docker compose --env-file services/engine-go/.env up -d
+  rebuild:
+    desc: "Пересборка и запуск"
+    cmds:
+      # Мы добавляем --build, чтобы Docker проверил изменения
+      - docker compose --env-file services/engine-go/.env up -d --build
+    silent: true
+  hard-rebuild:
+    desc: "Полная пересборка с нуля"
+    cmds:
+      - docker compose build --no-cache
+      - task: up
   down:
     desc: "Завершение сервиса"
     cmds:

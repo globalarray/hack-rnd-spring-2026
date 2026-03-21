@@ -1,4 +1,4 @@
-package models
+package survey
 
 type SurveyGroup string
 
