@@ -8,15 +8,15 @@ const (
 
 // LogicRule определяет поведение при ответе
 type LogicRule interface {
-	GetAction() string
+	Action() LogicAction
 }
 
 type JumpRule struct {
-	NextQuestionID string // или OrderNumber, смотря что хранишь в БД
+	NextQuestionID string
 }
 
-func (r JumpRule) GetAction() string { return "JMP" }
+func (r JumpRule) Action() LogicAction { return ActionJump }
 
 type FinishRule struct{}
 
-func (r FinishRule) GetAction() string { return "FINISH" }
+func (r FinishRule) Action() LogicAction { return ActionFinish }

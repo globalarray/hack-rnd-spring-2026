@@ -1,4 +1,4 @@
-package repository
+package survey
 
 import _ "embed"
 

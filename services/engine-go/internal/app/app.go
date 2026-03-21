@@ -10,10 +10,13 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
+	sessionHandler "sourcecraft.dev/benzo/testengine/internal/delivery/grpc/session"
+	surveyHandler "sourcecraft.dev/benzo/testengine/internal/delivery/grpc/survey"
+	sessionRepo "sourcecraft.dev/benzo/testengine/internal/infrastructure/postgres/repository/session"
+	surveyRepo "sourcecraft.dev/benzo/testengine/internal/infrastructure/postgres/repository/survey"
+	"sourcecraft.dev/benzo/testengine/internal/service/session"
 
 	"github.com/jmoiron/sqlx"
-	transport "sourcecraft.dev/benzo/testengine/internal/delivery/grpc"
-	"sourcecraft.dev/benzo/testengine/internal/infrastructure/postgres/repository"
 	"sourcecraft.dev/benzo/testengine/internal/service/survey"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
@@ -49,7 +52,10 @@ func New(log *slog.Logger, cfg config.Config) (*App, error) {
 		return nil, fmt.Errorf("could not connect to postgres: %w", err)
 	}
 
-	transport.RegisterSurveyAdminServiceServer(grpcServer, log, survey.NewSurveyService(repository.NewSurveyRepository(log, db)))
+	sRepo := surveyRepo.NewSurveyRepository(log, db)
+
+	surveyHandler.RegisterSurveyAdminServiceServer(grpcServer, log, survey.NewSurveyService(sRepo))
+	sessionHandler.RegisterSessionClientServer(grpcServer, log, session.NewSessionService(log, sessionRepo.NewSessionRepository(log, db), sRepo))
 
 	return &App{log: log, cfg: cfg, grpcServer: grpcServer, db: db}, nil
 }

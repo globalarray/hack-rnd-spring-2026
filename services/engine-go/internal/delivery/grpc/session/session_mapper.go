@@ -1,4 +1,4 @@
-package grpc
+package session
 
 import (
 	"sourcecraft.dev/benzo/testengine/internal/domain/models/answer"
@@ -14,18 +14,18 @@ func mapStartSessionRequestToStartSessionInput(req *pb.StartSessionRequest) *dto
 	}
 }
 
-func mapAnswerToAnswerClientView(a answer.Answer) *pb.AnswerClientView {
+func mapAnswerToAnswerClientView(a *answer.Answer) *pb.AnswerClientView {
 	return &pb.AnswerClientView{
 		AnswerId: a.ID,
 		Text:     a.Text,
 	}
 }
 
-func mapQuestionToQuestionClientView(q question.Question) *pb.QuestionClientView {
+func mapQuestionToQuestionClientView(q *question.Question) *pb.QuestionClientView {
 	var answers = make([]*pb.AnswerClientView, len(q.Answers))
 
 	for i, a := range q.Answers {
-		answers[i] = mapAnswerToAnswerClientView(a)
+		answers[i] = mapAnswerToAnswerClientView(&a)
 	}
 
 	return &pb.QuestionClientView{
@@ -36,10 +36,20 @@ func mapQuestionToQuestionClientView(q question.Question) *pb.QuestionClientView
 	}
 }
 
-func mapDomainToStartSessionResponse(q question.Question) *pb.StartSessionResponse {
-
+func mapDomainToStartSessionResponse(q *dto.StartSessionOutput) *pb.StartSessionResponse {
 	return &pb.StartSessionResponse{
-		SessionId:     q.ID,
-		FirstQuestion: mapQuestionToQuestionClientView(q),
+		SessionId:     q.SessionID,
+		FirstQuestion: mapQuestionToQuestionClientView(q.FirstQuestion),
+	}
+}
+
+func mapSubmitAnswerResponse(output *dto.SubmitAnswerOutput) *pb.SubmitAnswerResponse {
+	if output == nil {
+		return &pb.SubmitAnswerResponse{}
+	}
+
+	return &pb.SubmitAnswerResponse{
+		NextQuestionId: output.NextQuestionID,
+		IsFinished:     output.IsFinished,
 	}
 }

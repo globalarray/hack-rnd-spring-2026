@@ -19,6 +19,9 @@
     // Создает анонимную сессию и отдает первый вопрос (без весов и логики)
     rpc StartSession(StartSessionRequest) returns (StartSessionResponse);
 
+    // Возвращает текущий тест для сессии
+    rpc GetCurrentQuestion(GetSessionCurrentQuestionRequest) returns (QuestionClientView);
+
     // Принимает ответ, маршрутизирует по графу и отдает следующий шаг
     rpc SubmitAnswer(SubmitAnswerRequest) returns (SubmitAnswerResponse);
   }
@@ -86,6 +89,10 @@
     QuestionClientView first_question = 2;
   }
 
+  message GetSessionCurrentQuestionRequest {
+    string session_id = 1;
+  }
+
   // Структура для клиента (строго изолирована от логики и баллов)
   message QuestionClientView {
     string question_id = 1;
@@ -100,21 +107,24 @@
   }
 
   message SubmitAnswerRequest {
-    string session_id = 1 [(validate.rules).string.uuid = true];
-    string question_id = 2 [(validate.rules).string.uuid = true];
-    string answer_id = 3 [(validate.rules).string.uuid = true];
-    string raw_text = 4;
+    string session_id = 1;
+    string question_id = 2;
+
+    oneof payload {
+      string answer_id = 3;
+      string raw_text = 4;
+      SelectedAnswers multiple_choice = 5;
+    }
+  }
+
+  message SelectedAnswers {
+    repeated string answer_ids = 1;
   }
 
   message SubmitAnswerResponse {
-    bool is_completed = 1;
-    QuestionClientView next_question = 2;
-    int32 progress_percentage = 3;
+    string next_question_id = 1;
+    bool is_finished = 2;
   }
-
-  // =====================================================================
-  // СООБЩЕНИЯ: Интеграция с Python ML
-  // =====================================================================
 
   message GetSessionDataRequest {
     string session_id = 1 [(validate.rules).string.uuid = true];

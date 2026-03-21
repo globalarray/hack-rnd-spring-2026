@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"sourcecraft.dev/benzo/testengine/internal/domain"
+	"sourcecraft.dev/benzo/testengine/internal/domain/models/survey"
 	"sourcecraft.dev/benzo/testengine/internal/service/survey/dto"
 )
 
@@ -21,7 +21,7 @@ func NewSurveyService(repo surveyRepository) *service {
 }
 
 func (s *service) Create(ctx context.Context, input *dto.CreateSurveyInput) (uuid string, err error) {
-	settingsMap, err := domain.ParseSettings(input.Settings)
+	settingsMap, err := survey.ParseSettings(input.Settings)
 
 	if err != nil {
 		return uuid, fmt.Errorf("cannot parse settingsJson: %w", err)

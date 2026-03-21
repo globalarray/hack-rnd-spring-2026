@@ -1,0 +1,1 @@
+INSERT INTO responses (session_id, question_id, answer_id) VALUES ($1, $2, $3)

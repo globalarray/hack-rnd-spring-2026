@@ -1,0 +1,17 @@
+linters:
+  enable:
+    - govet
+    - staticcheck
+    - errcheck
+    - ineffassign
+    - gocyclo
+    - bodyclose
+    - dogsled
+    - nilerr
+    - noctx
+    - prealloc
+    - unconvert
+formatters:
+  enable:
+    - gofmt
+version: 2
