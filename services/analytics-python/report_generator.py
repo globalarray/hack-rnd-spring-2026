@@ -1,55 +1,69 @@
 import io
+import base64
 import numpy as np
-import matplotlib.pyplot as plt
+from matplotlib.figure import Figure  # Используем Figure напрямую для потокобезопасности
 from docxtpl import DocxTemplate, InlineImage
 from docx.shared import Mm
+from jinja2 import Template
 
 
 def _create_chart(labels, scores, chart_type='radar'):
-    plt.figure(figsize=(5, 4))
-    prof_color = '#10b981'  # Зеленый цвет бренда
+    fig = Figure(figsize=(5, 4), dpi=120)
+    prof_color = '#10b981'
 
     if chart_type == 'radar':
-        ax = plt.subplot(111, polar=True)
+        ax = fig.add_subplot(111, polar=True)
+        # Подготовка данных для замыкания круга
         stats = np.concatenate((scores, [scores[0]]))
         angles = np.linspace(0, 2 * np.pi, len(labels), endpoint=False).tolist()
         angles += angles[:1]
+
         ax.fill(angles, stats, color=prof_color, alpha=0.2)
         ax.plot(angles, stats, color=prof_color, linewidth=2, marker='o')
+
         ax.set_xticks(angles[:-1])
         ax.set_xticklabels(labels)
         ax.set_ylim(0, 5)
     else:
-        # Для психологического репорта (тег {{ graph }})
-        plt.bar(labels, scores, color=prof_color, alpha=0.8)
-        plt.ylim(0, 5)
+        ax = fig.add_subplot(111)
+        ax.bar(labels, scores, color=prof_color, alpha=0.8)
+        ax.set_ylim(0, 5)
 
+    # Сохраняем через объект фигуры
     buf = io.BytesIO()
-    plt.savefig(buf, format='png', bbox_inches='tight', dpi=120)
-    plt.close()
+    fig.savefig(buf, format='png', bbox_inches='tight')
     buf.seek(0)
     return buf
 
 
 def render_any_report(template_bytes, data, file_name):
+    # Защита от пустых данных, если labels/scores не дошли
+    if not data.get('labels') or not data.get('scores'):
+        data['labels'], data['scores'] = ['No Data'], [0]
+
     if file_name.endswith('.docx'):
         doc = DocxTemplate(io.BytesIO(template_bytes))
 
-        # Репорту пользователя нужен radar_chart
-        data['radar_chart'] = InlineImage(doc, _create_chart(data['labels'], data['scores'], 'radar'), width=Mm(90))
-        # Репорту психолога нужен graph
-        data['graph'] = InlineImage(doc, _create_chart(data['labels'], data['scores'], 'bar'), width=Mm(120))
+        # Генерируем изображения
+        radar_buf = _create_chart(data['labels'], data['scores'], 'radar')
+        bar_buf = _create_chart(data['labels'], data['scores'], 'bar')
+
+        # Вставляем в Word
+        data['radar_chart'] = InlineImage(doc, radar_buf, width=Mm(90))
+        data['graph'] = InlineImage(doc, bar_buf, width=Mm(120))
 
         doc.render(data)
         out = io.BytesIO()
         doc.save(out)
         return out.getvalue()
+
     else:
-        # HTML оставляем без изменений
-        import base64
-        from jinja2 import Template
-        data['radar_chart_base64'] = base64.b64encode(
-            _create_chart(data['labels'], data['scores'], 'radar').getvalue()).decode()
-        data['chart_base64'] = base64.b64encode(
-            _create_chart(data['labels'], data['scores'], 'bar').getvalue()).decode()
+        # HTML рендеринг
+        # Чтобы не генерировать графики дважды, создаем их один раз
+        radar_buf = _create_chart(data['labels'], data['scores'], 'radar')
+        bar_buf = _create_chart(data['labels'], data['scores'], 'bar')
+
+        data['radar_chart_base64'] = base64.b64encode(radar_buf.getvalue()).decode()
+        data['chart_base64'] = base64.b64encode(bar_buf.getvalue()).decode()
+
         return Template(template_bytes.decode('utf-8')).render(data).encode('utf-8')

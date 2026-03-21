@@ -65,3 +65,5 @@ cover/
 # Системные файлы (macOS, Windows)
 .DS_Store
 Thumbs.db
+
+../../certs/

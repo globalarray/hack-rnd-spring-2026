@@ -16,6 +16,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
   migrations:
     image: migrate/migrate
     networks:
@@ -29,6 +30,32 @@ services:
     depends_on:
       postgres_engine:
         condition: service_healthy
+
+  # --- НОВЫЙ БЛОК: Python Analytics Service ---
+  analytics-report:
+    build:
+      context: ./services/analytics-python
+      dockerfile: Dockerfile
+    networks:
+      - hack-net
+    depends_on:
+      postgres_engine:
+        condition: service_healthy
+    environment:
+      - ENGINE_PG_USER=${ENGINE_PG_USER}
+      - ENGINE_PG_DATABASE=${ENGINE_PG_DATABASE}
+      - ENGINE_PG_PASSWORD=${ENGINE_PG_PASSWORD}
+      - ENGINE_PG_HOST=postgres_engine
+      - CERTS_PATH=/etc/certs
+      - PYTHONUNBUFFERED=1
+    ports:
+      - "50051:50051"
+    volumes:
+      # Пробрасываем сертификаты так же, как в Go-сервисе
+      - ./certs/ca.crt:/etc/certs/ca.crt:ro
+      - ./certs/server.crt:/etc/certs/server.crt:ro
+      - ./certs/server.key:/etc/certs/server.key:ro
+
   test-engine:
     build:
       context: .
@@ -38,8 +65,11 @@ services:
     depends_on:
       postgres_engine:
         condition: service_healthy
+      analytics-report: # Добавляем зависимость, если Go сервис вызывает Python
+        condition: service_started
     environment:
       APP_ENV: development
+      ANALYTICS_ADDR: analytics-report:50051 # Чтобы Go знал, куда стучаться
     env_file: services/engine-go/.env
     ports:
       - "50036:50036"
@@ -47,6 +77,7 @@ services:
       - ./certs/ca.crt:/etc/certs/ca.crt:ro
       - ./certs/server.crt:/etc/certs/server.crt:ro
       - ./certs/server.key:/etc/certs/server.key:ro
+
 networks:
   hack-net:
     driver: bridge

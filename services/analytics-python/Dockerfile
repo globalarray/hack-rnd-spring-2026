@@ -1,28 +1,28 @@
-# Используем 1.23, чтобы удовлетворить требования библиотек
-FROM golang:1.23-alpine3.20 AS builder
+FROM golang:1.25-alpine3.20 AS builder
 
+# Установка системных зависимостей
 RUN apk add --no-cache protoc protobuf-dev tzdata ca-certificates
 
-# Указываем конкретные версии, которые гарантированно работают с Go 1.23
+# Установка плагинов генерации
 RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.34.2
 RUN go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
 
 WORKDIR /app
 
-# Сначала копируем только модули для кэширования слоев
+# Копируем модули
 COPY services/engine-go/go.mod services/engine-go/go.sum ./
 RUN go mod download
 
 # Копируем остальной код
 COPY services/engine-go/ .
 
-# Генерируем файлы (убедитесь, что analytics.proto лежит в services/engine-go/)
+# Генерация кода из прото-файла
 RUN mkdir -p internal/gen/pb && \
     protoc --go_out=internal/gen/pb --go_opt=paths=source_relative \
     --go-grpc_out=internal/gen/pb --go-grpc_opt=paths=source_relative \
     analytics.proto
 
-# Собираем бинарник
+# Сборка
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o /engine cmd/engine/main.go
 
 FROM scratch

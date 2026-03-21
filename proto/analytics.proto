@@ -1,6 +1,7 @@
 syntax = "proto3";
 
 package analytics.v1;
+option go_package = "sourcecraft.dev/benzo/testengine/internal/gen/pb";
 
 // 1. Сначала определения перечислений
 enum QuestionType {
