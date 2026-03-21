@@ -24,6 +24,16 @@ func (s SurveySettingMap) GetString(group SurveyGroup, setting string, defaultVa
 	return defaultValue
 }
 
+func (s SurveySettingMap) GetFloat64(group SurveyGroup, setting string, defaultValue float64) float64 {
+	if v, ok := s[group]; ok {
+		if v, ok := v[setting].(float64); ok {
+			return v
+		}
+	}
+
+	return defaultValue
+}
+
 func (s SurveySettingMap) Validate() error {
 	if err := s.validateLimits(); err != nil {
 		return err

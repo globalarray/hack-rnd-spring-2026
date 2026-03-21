@@ -47,6 +47,7 @@ CREATE INDEX idx_answers_question_id ON answers(question_id);
 CREATE TABLE IF NOT EXISTS sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     survey_id UUID NOT NULL REFERENCES surveys(id) ON DELETE CASCADE,
+    current_question_id UUID REFERENCES questions(id),
     client_metadata JSONB DEFAULT '{}'::jsonb,
     status session_status NOT NULL DEFAULT 'CREATED',
     started_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
