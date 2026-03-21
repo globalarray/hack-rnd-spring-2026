@@ -4,9 +4,7 @@ package testengine.v1;
 
 option go_package = "sourcecraft.dev/benzo/testengine/internal/gen/pb;pb";
 
-// =====================================================================
-// СЕРВИС: Test Engine (Движок тестирования на Go)
-// =====================================================================
+import "validate/validate.proto";
 
 service SurveyAdminService {
   // Сохраняет весь граф теста (вызывается при создании в конструкторе)
@@ -28,10 +26,6 @@ service AnalyticsService {
   rpc GetSessionDataForAnalytics(GetSessionDataRequest) returns (SessionAnalyticsResponse);
 }
 
-// =====================================================================
-// БАЗОВЫЕ ТИПЫ
-// =====================================================================
-
 enum QuestionType {
   QUESTION_TYPE_UNSPECIFIED = 0;
   QUESTION_TYPE_SINGLE_CHOICE = 1;
@@ -40,20 +34,16 @@ enum QuestionType {
   QUESTION_TYPE_TEXT = 4;
 }
 
-// =====================================================================
-// СООБЩЕНИЯ: Админская часть (BFF)
-// =====================================================================
-
 message CreateSurveyRequest {
-  string psychologist_id = 1;
-  string title = 2;
+  string psychologist_id = 1 [(validate.rules).string.uuid = true];
+  string title = 2 [(validate.rules).string.min_len = 5];
   string description = 3;
   string settings_json = 4;   // Настройки приватности и стартовой формы
   repeated QuestionPayload questions = 5;
 }
 
 message QuestionPayload {
-  int32 order_num = 1;
+  uint32 order_num = 1;
   QuestionType type = 2;
   string text = 3;
   string logic_rules_json = 4; // Граф переходов: {"rules": {"ans_id": {"action": "JUMP", "target": "q_id"}}}
@@ -67,11 +57,11 @@ message AnswerPayload {
 }
 
 message CreateSurveyResponse {
-  string survey_id = 1;
+  string survey_id = 1 [(validate.rules).string.uuid = true];
 }
 
 message ListSurveysRequest {
-  string psychologist_id = 1;
+  string psychologist_id = 1 [(validate.rules).string.uuid = true];
 }
 
 message ListSurveysResponse {
@@ -79,17 +69,13 @@ message ListSurveysResponse {
 }
 
 message SurveySummary {
-  string survey_id = 1;
+  string survey_id = 1 [(validate.rules).string.uuid = true];
   string title = 2;
   int32 completions_count = 3;
 }
 
-// =====================================================================
-// СООБЩЕНИЯ: Клиентская часть (BFF)
-// =====================================================================
-
 message StartSessionRequest {
-  string survey_id = 1;
+  string survey_id = 1 [(validate.rules).string.uuid = true];
   string client_metadata_json = 2;
 }
 
@@ -112,9 +98,9 @@ message AnswerClientView {
 }
 
 message SubmitAnswerRequest {
-  string session_id = 1;
-  string question_id = 2;
-  string answer_id = 3;
+  string session_id = 1 [(validate.rules).string.uuid = true];
+  string question_id = 2 [(validate.rules).string.uuid = true];
+  string answer_id = 3 [(validate.rules).string.uuid = true];
   string raw_text = 4;
 }
 
@@ -129,7 +115,7 @@ message SubmitAnswerResponse {
 // =====================================================================
 
 message GetSessionDataRequest {
-  string session_id = 1;
+  string session_id = 1 [(validate.rules).string.uuid = true];
 }
 
 message SessionAnalyticsResponse {

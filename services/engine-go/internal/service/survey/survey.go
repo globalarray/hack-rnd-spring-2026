@@ -1,13 +1,15 @@
-package service
+package survey
 
 import (
 	"context"
+	"fmt"
 
-	"github.com/google/uuid"
+	"sourcecraft.dev/benzo/testengine/internal/domain"
+	"sourcecraft.dev/benzo/testengine/internal/service/survey/dto"
 )
 
 type surveyRepository interface {
-	Get()
+	SaveFull(ctx context.Context, in *dto.CreateSurveyInput) (string, error)
 }
 
 type surveyService struct {
@@ -18,6 +20,21 @@ func NewSurvey(repo surveyRepository) *surveyService {
 	return &surveyService{repo: repo}
 }
 
-func (s *surveyService) Create(ctx context.Context, CreateSurveyInput) error {
+func (s *surveyService) CreateFull(ctx context.Context, input *dto.CreateSurveyInput) (uuid string, err error) {
+	settingsMap, err := domain.ParseSettings(input.Settings)
 
+	if err != nil {
+		return uuid, fmt.Errorf("cannot parse settingsJson: %w", err)
+	}
+	if err := settingsMap.Validate(); err != nil {
+		return uuid, fmt.Errorf("invalid settings: %w", err)
+	}
+
+	uuid, err = s.repo.SaveFull(ctx, input)
+
+	if err != nil {
+		return uuid, fmt.Errorf("cannot save survey: %w", err)
+	}
+
+	return uuid, nil
 }

@@ -1,0 +1,39 @@
+version: '3'
+
+tasks:
+  up:
+    desc: "Запуск сервиса с подгрузкой нужного .env"
+    cmds:
+      - docker compose --env-file services/engine-go/.env up -d
+  down:
+    desc: "Завершение сервиса"
+    cmds:
+      - docker compose --env-file services/engine-go/.env down
+    silent: true
+  create-migration:
+    desc: "Генерирует пустые файлы up/down для новой миграции"
+    requires:
+      vars: [NAME, OUTPUT]
+    vars:
+      TIMESTAMP: '{{now | date "20060102150405"}}'
+      FILENAME: '{{.TIMESTAMP}}_{{.NAME}}'
+    cmds:
+      - mkdir -p "{{.OUTPUT}}"
+      - touch "{{.OUTPUT}}/{{.FILENAME}}.up.sql"
+      - touch "{{.OUTPUT}}/{{.FILENAME}}.down.sql"
+  gen-certs:
+    desc: "Генерирует сертификаты для обеспечения mTLS между микросервисами"
+    requires:
+      vars: [OUTPUT]
+    cmds:
+      - mkdir -p {{.OUTPUT}}
+      - openssl genrsa -out {{.OUTPUT}}/ca.key 4096
+      - openssl req -new -x509 -key {{.OUTPUT}}/ca.key -sha256 -subj "/C=RU/ST=MSK/O=BenzoProfDNK/CN=RootCA" -days 365 -out {{.OUTPUT}}/ca.crt
+      - echo -e "Generating server.csr"
+      - openssl genrsa -out {{.OUTPUT}}/server.key 2048
+      - openssl req -new -key {{.OUTPUT}}/server.key -subj "/C=RU/ST=MSK/O=BenzoProfDNK/CN=testengine" -out {{.OUTPUT}}/server.csr
+      - openssl x509 -req -in {{.OUTPUT}}/server.csr -CA {{.OUTPUT}}/ca.crt -CAkey {{.OUTPUT}}/ca.key -CAcreateserial -out {{.OUTPUT}}/server.crt -days 365 -sha256
+      - echo -e "Generating client.csr"
+      - openssl genrsa -out {{.OUTPUT}}/client.key 2048
+      - openssl req -new -key {{.OUTPUT}}/client.key -subj "/C=RU/ST=MSK/O=BenzoProfDNK/CN=php-bff" -out {{.OUTPUT}}/client.csr
+      - openssl x509 -req -in {{.OUTPUT}}/client.csr -CA {{.OUTPUT}}/ca.crt -CAkey {{.OUTPUT}}/ca.key -CAcreateserial -out {{.OUTPUT}}/client.crt -days 365 -sha256

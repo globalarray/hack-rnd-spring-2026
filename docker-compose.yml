@@ -1,0 +1,33 @@
+version: "3.9"
+
+services:
+  postgres_engine:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${ENGINE_PG_USER}
+      POSTGRES_PASSWORD: ${ENGINE_PG_PASSWORD}
+      POSTGRES_DB: ${ENGINE_PG_DATABASE}
+    volumes:
+      - "engine_pgdata:/var/lib/postgresql/data"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${ENGINE_PG_USER} -d ${ENGINE_PG_DATABASE}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  test-engine:
+    build:
+      context: .
+      dockerfile: services/engine-go/Dockerfile
+    depends_on:
+      postgres_engine:
+        condition: service_healthy
+    environment:
+      APP_ENV: development
+    env_file: services/engine-go/.env
+    volumes:
+      - ./certs/ca.crt:/etc/certs/ca.crt:ro
+      - ./certs/server.crt:/etc/certs/server.crt:ro
+      - ./certs/server.key:/etc/certs/server.key:ro
+volumes:
+  engine_pgdata:
