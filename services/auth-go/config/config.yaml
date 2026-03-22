@@ -1,0 +1,18 @@
+env: "development"
+port: "50037"
+certs_path: "/etc/certs"
+migrations_path: "./internal/migrations/init.sql"
+database:
+  host: "postgres_auth"
+  port: "5432"
+  user: "hack"
+  password: "hack"
+  name: "authdb"
+  ssl_mode: "disable"
+bootstrap_admin:
+  email: "admin@profdnk.local"
+  password: "admin12345"
+  full_name: "System Administrator"
+  phone: "+70000000000"
+  access_until: "2099-12-31"
+  role: "admin"

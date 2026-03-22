@@ -11,6 +11,7 @@ import (
 	httpapi "sourcecraft.dev/benzo/bff/internal/delivery/httpapi"
 	smtpadapter "sourcecraft.dev/benzo/bff/internal/infrastructure/email/smtp"
 	analyticsgrpc "sourcecraft.dev/benzo/bff/internal/infrastructure/grpc/analytics"
+	authgrpc "sourcecraft.dev/benzo/bff/internal/infrastructure/grpc/auth"
 	enginegrpc "sourcecraft.dev/benzo/bff/internal/infrastructure/grpc/engine"
 	grpcclient "sourcecraft.dev/benzo/bff/internal/infrastructure/grpc/shared"
 
@@ -21,6 +22,7 @@ type App struct {
 	handler       http.Handler
 	engineConn    *grpc.ClientConn
 	analyticsConn *grpc.ClientConn
+	authConn      *grpc.ClientConn
 }
 
 func New(ctx context.Context, log *slog.Logger, cfg config.Config) (*App, error) {
@@ -49,8 +51,23 @@ func New(ctx context.Context, log *slog.Logger, cfg config.Config) (*App, error)
 		return nil, fmt.Errorf("dial analytics: %w", err)
 	}
 
+	authConn, err := grpcclient.Dial(ctx, grpcclient.Config{
+		Address:        cfg.Auth.Address,
+		Insecure:       cfg.Auth.Insecure,
+		CACertPath:     cfg.Auth.CACertPath,
+		ClientCertPath: cfg.Auth.ClientCertPath,
+		ClientKeyPath:  cfg.Auth.ClientKeyPath,
+		ServerName:     cfg.Auth.ServerName,
+	})
+	if err != nil {
+		_ = engineConn.Close()
+		_ = analyticsConn.Close()
+		return nil, fmt.Errorf("dial auth: %w", err)
+	}
+
 	engineGateway := enginegrpc.NewClient(engineConn)
 	analyticsGateway := analyticsgrpc.NewClient(analyticsConn)
+	authGateway := authgrpc.NewClient(authConn)
 	mailer := smtpadapter.NewSender(smtpadapter.Config{
 		Host:     cfg.SMTP.Host,
 		Port:     cfg.SMTP.Port,
@@ -62,13 +79,15 @@ func New(ctx context.Context, log *slog.Logger, cfg config.Config) (*App, error)
 
 	surveyUseCase := usecase.NewSurveyUseCase(engineGateway)
 	sessionUseCase := usecase.NewSessionUseCase(log, engineGateway, analyticsGateway, mailer, cfg.DefaultClientReportFormat)
+	authUseCase := usecase.NewAuthUseCase(authGateway, cfg.PublicBaseURL)
 
-	handler := httpapi.NewRouter(log, surveyUseCase, sessionUseCase)
+	handler := httpapi.NewRouter(log, surveyUseCase, sessionUseCase, authUseCase)
 
 	return &App{
 		handler:       handler,
 		engineConn:    engineConn,
 		analyticsConn: analyticsConn,
+		authConn:      authConn,
 	}, nil
 }
 
@@ -85,6 +104,12 @@ func (a *App) Shutdown(ctx context.Context) error {
 
 	if a.analyticsConn != nil {
 		if err := a.analyticsConn.Close(); err != nil {
+			return err
+		}
+	}
+
+	if a.authConn != nil {
+		if err := a.authConn.Close(); err != nil {
 			return err
 		}
 	}

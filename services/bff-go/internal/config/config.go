@@ -11,8 +11,10 @@ type Config struct {
 	HTTPPort                  string
 	LogLevel                  string
 	DefaultClientReportFormat string
+	PublicBaseURL             string
 	Engine                    GRPCClientConfig
 	Analytics                 GRPCClientConfig
+	Auth                      GRPCClientConfig
 	SMTP                      SMTPConfig
 }
 
@@ -39,6 +41,7 @@ func Load() (Config, error) {
 		HTTPPort:                  getEnv("PORT", "8080"),
 		LogLevel:                  strings.ToLower(getEnv("LOG_LEVEL", "info")),
 		DefaultClientReportFormat: getEnv("DEFAULT_CLIENT_REPORT_FORMAT", "client_docx"),
+		PublicBaseURL:             getEnv("PUBLIC_BASE_URL", "http://localhost:3000"),
 		Engine: GRPCClientConfig{
 			Address:        getEnv("ENGINE_ADDR", "test-engine:50036"),
 			Insecure:       getEnvBool("ENGINE_INSECURE", false),
@@ -54,6 +57,14 @@ func Load() (Config, error) {
 			ClientCertPath: getEnv("ANALYTICS_CLIENT_CERT_PATH", ""),
 			ClientKeyPath:  getEnv("ANALYTICS_CLIENT_KEY_PATH", ""),
 			ServerName:     getEnv("ANALYTICS_SERVER_NAME", ""),
+		},
+		Auth: GRPCClientConfig{
+			Address:        getEnv("AUTH_ADDR", "auth-go:50037"),
+			Insecure:       getEnvBool("AUTH_INSECURE", false),
+			CACertPath:     getEnv("AUTH_CA_CERT_PATH", getEnv("CA_CERT_PATH", "")),
+			ClientCertPath: getEnv("AUTH_CLIENT_CERT_PATH", getEnv("CLIENT_CERT_PATH", "")),
+			ClientKeyPath:  getEnv("AUTH_CLIENT_KEY_PATH", getEnv("CLIENT_KEY_PATH", "")),
+			ServerName:     getEnv("AUTH_SERVER_NAME", getEnv("ENGINE_SERVER_NAME", "")),
 		},
 		SMTP: SMTPConfig{
 			Host:     getEnv("SMTP_HOST", ""),

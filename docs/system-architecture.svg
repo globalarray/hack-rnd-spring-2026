@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="980" viewBox="0 0 1600 980" role="img" aria-labelledby="title desc">
+  <title id="title">ProfDNK System Architecture</title>
+  <desc id="desc">High-level architecture of frontend, BFF, auth-go, engine-go, analytics-python, postgres databases, migrations, and SMTP email delivery.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#274060"/>
+    </marker>
+    <style>
+      .bg { fill: #f6f8fb; }
+      .title { font: 700 34px Arial, sans-serif; fill: #14213d; }
+      .subtitle { font: 400 17px Arial, sans-serif; fill: #51606f; }
+      .group { fill: #ffffff; stroke: #d8e0ea; stroke-width: 2; rx: 26; ry: 26; }
+      .box-user { fill: #eef6ff; stroke: #83aee6; stroke-width: 2; rx: 18; ry: 18; }
+      .box-frontend { fill: #fff3e8; stroke: #f0b37e; stroke-width: 2; rx: 18; ry: 18; }
+      .box-bff { fill: #e9fbef; stroke: #59a96a; stroke-width: 3; rx: 20; ry: 20; }
+      .box-service { fill: #edf2ff; stroke: #7f8dd8; stroke-width: 2; rx: 18; ry: 18; }
+      .box-python { fill: #fff0f7; stroke: #d77fb3; stroke-width: 2; rx: 18; ry: 18; }
+      .box-db { fill: #f2f5f7; stroke: #8aa0ae; stroke-width: 2; rx: 18; ry: 18; }
+      .box-mail { fill: #fff9e6; stroke: #d2b24c; stroke-width: 2; rx: 18; ry: 18; }
+      .label { font: 700 22px Arial, sans-serif; fill: #14213d; }
+      .text { font: 400 16px Arial, sans-serif; fill: #324150; }
+      .small { font: 400 15px Arial, sans-serif; fill: #5b6b79; }
+      .edge { stroke: #274060; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .edge-soft { stroke: #5b6b79; stroke-width: 2.5; fill: none; marker-end: url(#arrow); stroke-dasharray: 10 8; }
+      .edge-label { font: 700 15px Arial, sans-serif; fill: #1f3552; }
+      .legend-title { font: 700 18px Arial, sans-serif; fill: #14213d; }
+      .legend-text { font: 400 15px Arial, sans-serif; fill: #465766; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1600" height="980"/>
+
+  <text class="title" x="70" y="70">ПрофДНК: схема работы системы целиком</text>
+  <text class="subtitle" x="70" y="105">Frontend общается только с BFF. Внутри BFF оркестрирует auth-go, engine-go, analytics-python и email-доставку.</text>
+
+  <rect class="group" x="50" y="145" width="360" height="720"/>
+  <text class="label" x="80" y="190">Клиенты и интерфейс</text>
+
+  <rect class="box-user" x="80" y="230" width="140" height="84"/>
+  <text class="label" x="103" y="280">Админ</text>
+
+  <rect class="box-user" x="240" y="230" width="140" height="84"/>
+  <text class="label" x="246" y="280">Психолог</text>
+
+  <rect class="box-user" x="160" y="350" width="140" height="84"/>
+  <text class="label" x="186" y="400">Кандидат</text>
+
+  <rect class="box-frontend" x="80" y="510" width="300" height="210"/>
+  <text class="label" x="165" y="560">Frontend</text>
+  <text class="text" x="120" y="600">• Admin panel</text>
+  <text class="text" x="120" y="632">• Cabinet психолога</text>
+  <text class="text" x="120" y="664">• Public candidate flow</text>
+  <text class="text" x="120" y="696">• Drag &amp; Drop конструктор</text>
+
+  <path class="edge" d="M 150 314 L 150 510"/>
+  <path class="edge" d="M 310 314 L 310 510"/>
+  <path class="edge" d="M 230 434 L 230 510"/>
+
+  <rect class="group" x="470" y="230" width="290" height="380"/>
+  <text class="label" x="545" y="275">Публичный backend</text>
+
+  <rect class="box-bff" x="520" y="320" width="190" height="200"/>
+  <text class="label" x="586" y="380">bff-go</text>
+  <text class="text" x="547" y="418">REST API</text>
+  <text class="text" x="547" y="448">orchestration</text>
+  <text class="text" x="547" y="478">validation</text>
+
+  <path class="edge" d="M 380 615 L 520 420"/>
+  <text class="edge-label" x="405" y="505">REST / JSON</text>
+
+  <rect class="group" x="830" y="145" width="700" height="720"/>
+  <text class="label" x="860" y="190">Внутренние микросервисы и хранилища</text>
+
+  <rect class="box-service" x="880" y="235" width="240" height="145"/>
+  <text class="label" x="955" y="285">auth-go</text>
+  <text class="text" x="915" y="322">• login admin / psychologist</text>
+  <text class="text" x="915" y="350">• invitation onboarding</text>
+  <text class="text" x="915" y="378">• lifecycle аккаунтов</text>
+
+  <rect class="box-service" x="880" y="455" width="240" height="175"/>
+  <text class="label" x="942" y="505">engine-go</text>
+  <text class="text" x="915" y="542">• surveys</text>
+  <text class="text" x="915" y="570">• sessions</text>
+  <text class="text" x="915" y="598">• questions / answers</text>
+  <text class="text" x="915" y="626">• analytics payload</text>
+
+  <rect class="box-python" x="880" y="705" width="240" height="120"/>
+  <text class="label" x="892" y="755">analytics-python</text>
+  <text class="text" x="922" y="792">GenerateReport</text>
+
+  <rect class="box-db" x="1220" y="245" width="250" height="120"/>
+  <text class="label" x="1285" y="295">postgres_auth</text>
+  <text class="text" x="1260" y="330">users, invitations</text>
+
+  <rect class="box-db" x="1220" y="480" width="250" height="120"/>
+  <text class="label" x="1275" y="530">postgres_engine</text>
+  <text class="text" x="1247" y="565">surveys, sessions, responses</text>
+
+  <rect class="box-service" x="1220" y="655" width="250" height="95"/>
+  <text class="label" x="1270" y="710">migrations</text>
+
+  <rect class="box-mail" x="1220" y="785" width="250" height="95"/>
+  <text class="label" x="1285" y="840">SMTP / Email</text>
+
+  <path class="edge" d="M 710 360 L 880 307"/>
+  <text class="edge-label" x="744" y="310">gRPC + mTLS</text>
+
+  <path class="edge" d="M 710 430 L 880 542"/>
+  <text class="edge-label" x="748" y="470">gRPC + mTLS</text>
+
+  <path class="edge" d="M 710 470 L 880 760"/>
+  <text class="edge-label" x="742" y="650">gRPC</text>
+
+  <path class="edge" d="M 710 520 L 1220 833"/>
+  <text class="edge-label" x="805" y="735">SMTP</text>
+
+  <path class="edge" d="M 1120 307 L 1220 305"/>
+  <text class="edge-label" x="1146" y="290">SQL</text>
+
+  <path class="edge" d="M 1120 542 L 1220 540"/>
+  <text class="edge-label" x="1146" y="525">SQL</text>
+
+  <path class="edge-soft" d="M 1345 655 L 1345 600"/>
+  <text class="edge-label" x="1362" y="635">apply</text>
+
+  <rect class="group" x="470" y="665" width="290" height="200"/>
+  <text class="label" x="545" y="710">Ключевые сценарии</text>
+  <text class="text" x="505" y="755">1. Admin login -&gt; invitation</text>
+  <text class="text" x="505" y="787">2. Psychologist register -&gt; cabinet</text>
+  <text class="text" x="505" y="819">3. Create survey -&gt; public link</text>
+  <text class="text" x="505" y="851">4. Candidate pass -&gt; report by email</text>
+
+  <rect class="group" x="70" y="890" width="1460" height="60"/>
+  <text class="legend-title" x="95" y="925">Смысл системы:</text>
+  <text class="legend-text" x="250" y="925">Frontend не знает о внутренней микросервисной топологии. BFF скрывает её, auth-go управляет доступом, engine-go хранит предметную модель тестов, analytics-python строит отчёт, а BFF отправляет его клиенту по email без хранения на диске.</text>
+</svg>

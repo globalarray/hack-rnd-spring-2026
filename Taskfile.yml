@@ -18,21 +18,30 @@ tasks:
             exit 1
           fi
         done
+  ensure-auth-env:
+    desc: "Создает services/auth-go/.env из примера, если он отсутствует"
+    cmds:
+      - |
+        set -eu
+        if [ ! -f services/auth-go/.env ]; then
+          cp services/auth-go/.env.example services/auth-go/.env
+          echo "Created services/auth-go/.env from .env.example"
+        fi
   up:
     desc: "Запуск сервиса с подгрузкой нужного .env"
-    deps: [check-certs]
+    deps: [check-certs, ensure-auth-env]
     cmds:
       - docker compose --env-file services/engine-go/.env up -d
   rebuild:
     desc: "Пересборка и запуск"
-    deps: [check-certs]
+    deps: [check-certs, ensure-auth-env]
     cmds:
       # Мы добавляем --build, чтобы Docker проверил изменения
       - docker compose --env-file services/engine-go/.env up -d --build
     silent: true
   hard-rebuild:
     desc: "Полная пересборка с нуля"
-    deps: [check-certs]
+    deps: [check-certs, ensure-auth-env]
     cmds:
       - docker compose build --no-cache
       - task: up
@@ -141,6 +150,17 @@ tasks:
         export GOBIN="{{.TOOLS_BIN}}"
         export PATH="{{.TOOLS_BIN}}:$PATH"
 
+        if [ -x "{{.TOOLS_BIN}}/protoc-gen-go" ] \
+          && [ -x "{{.TOOLS_BIN}}/protoc-gen-go-grpc" ] \
+          && [ -x "{{.TOOLS_BIN}}/protoc-gen-validate" ] \
+          && "{{.TOOLS_BIN}}/protoc-gen-go" --version >/dev/null 2>&1 \
+          && "{{.TOOLS_BIN}}/protoc-gen-go-grpc" --version >/dev/null 2>&1 \
+          && "{{.TOOLS_BIN}}/protoc-gen-validate" -h >/dev/null 2>&1
+        then
+          echo "protoc Go plugins already installed and usable"
+          exit 0
+        fi
+
         rm -f "{{.TOOLS_BIN}}/protoc-gen-go" "{{.TOOLS_BIN}}/protoc-gen-go-grpc" "{{.TOOLS_BIN}}/protoc-gen-validate"
 
         go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
@@ -239,6 +259,39 @@ tasks:
           --go-grpc_out=paths=source_relative:"$testengine_out_dir" \
           --validate_out=lang=go,paths=source_relative:"$testengine_out_dir" \
           test_engine.proto
+  proto:auth-go:
+    desc: "Генерирует grpc/go контракты для auth-go"
+    deps: [proto:ensure-go-tools]
+    cmds:
+      - |
+        set -eu
+        export PATH="{{.TOOLS_BIN}}:$PATH"
+        rebuild="${REBUILD_PROTO:-false}"
+        proto_root="{{.ROOT_DIR}}/proto"
+        out_dir="{{.ROOT_DIR}}/services/auth-go/gen/go"
+
+        mkdir -p "$out_dir"
+
+        need_rebuild="$rebuild"
+        for file in \
+          "$out_dir/auth.pb.go" \
+          "$out_dir/auth_grpc.pb.go"
+        do
+          if [ ! -f "$file" ]; then
+            need_rebuild="true"
+          fi
+        done
+
+        if [ "$need_rebuild" != "true" ]; then
+          echo "auth-go proto already generated, skip"
+          exit 0
+        fi
+
+        protoc \
+          -I "$proto_root" \
+          --go_out=paths=source_relative:"$out_dir" \
+          --go-grpc_out=paths=source_relative:"$out_dir" \
+          "$proto_root/auth.proto"
   proto:bff-go:
     desc: "Генерирует grpc/go контракты для bff-go"
     deps: [proto:ensure-go-tools]
@@ -250,8 +303,9 @@ tasks:
         proto_root="{{.ROOT_DIR}}/proto"
         testengine_out_dir="{{.ROOT_DIR}}/services/bff-go/internal/clients/grpc/testenginepb"
         analytics_out_dir="{{.ROOT_DIR}}/services/bff-go/internal/clients/grpc/analyticspb"
+        auth_out_dir="{{.ROOT_DIR}}/services/bff-go/internal/clients/grpc/authpb"
 
-        mkdir -p "$testengine_out_dir" "$analytics_out_dir"
+        mkdir -p "$testengine_out_dir" "$analytics_out_dir" "$auth_out_dir"
 
         need_testengine="$rebuild"
         for file in \
@@ -270,6 +324,16 @@ tasks:
         do
           if [ ! -f "$file" ]; then
             need_analytics="true"
+          fi
+        done
+
+        need_auth="$rebuild"
+        for file in \
+          "$auth_out_dir/auth.pb.go" \
+          "$auth_out_dir/auth_grpc.pb.go"
+        do
+          if [ ! -f "$file" ]; then
+            need_auth="true"
           fi
         done
 
@@ -293,6 +357,16 @@ tasks:
             analytics.proto
         else
           echo "bff-go analytics proto already generated, skip"
+        fi
+
+        if [ "$need_auth" = "true" ]; then
+          protoc \
+            -I . \
+            --go_out=paths=source_relative:"$auth_out_dir" \
+            --go-grpc_out=paths=source_relative:"$auth_out_dir" \
+            auth.proto
+        else
+          echo "bff-go auth proto already generated, skip"
         fi
   proto:analytics-python:
     desc: "Генерирует Python grpc контракты для analytics-python из shared analytics.proto"
@@ -364,6 +438,7 @@ tasks:
     desc: "Генерирует proto-контракты для всех сервисов; REBUILD_PROTO=true принудительно регенерирует их"
     cmds:
       - task: proto:engine-go
+      - task: proto:auth-go
       - task: proto:bff-go
       - task: proto:analytics-python
       - task: proto:python-services

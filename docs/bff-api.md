@@ -4,11 +4,12 @@
 
 `bff-go` is the single REST entrypoint for the frontend.
 
-It hides the internal gRPC topology and orchestrates three backend responsibilities:
+It hides the internal gRPC topology and orchestrates four backend responsibilities:
 
 1. survey management through `engine-go`
 2. candidate session flow through `engine-go`
 3. report generation through `analytics-python` and report delivery to candidate email through SMTP
+4. authentication and invitation flow through `auth-go`
 
 Important: generated reports are **not stored on the BFF server disk**.  
 The BFF keeps the report only in memory, immediately attaches it to an email, and sends it to `clientMetadata.email`.
@@ -39,6 +40,8 @@ Typical codes:
 - `invalid_request`
 - `not_found`
 - `alreadyexists`
+- `unauthenticated`
+- `permissiondenied`
 - `failedprecondition`
 - `unimplemented`
 - `service_unavailable`
@@ -52,6 +55,186 @@ The frontend must use string values:
 - `multiple_choice`
 - `scale`
 - `text`
+
+## Auth Flow
+
+### 1. Shared Login Entry Point
+
+`POST /public/v1/auth/login`
+
+Both administrators and psychologists use the same endpoint.
+
+Request:
+
+```json
+{
+  "email": "admin@profdnk.local",
+  "password": "admin12345"
+}
+```
+
+Response:
+
+```json
+{
+  "accessToken": "jwt-access-token",
+  "refreshToken": "jwt-refresh-token",
+  "expiresIn": 900,
+  "role": "admin"
+}
+```
+
+### 2. Refresh Token
+
+`POST /public/v1/auth/refresh`
+
+Request:
+
+```json
+{
+  "refreshToken": "jwt-refresh-token"
+}
+```
+
+### 3. Create Invitation
+
+`POST /api/v1/auth/invitations`
+
+Requires:
+
+- `Authorization: Bearer <accessToken>`
+- administrator role
+
+Request:
+
+```json
+{
+  "fullName": "Анна Смирнова",
+  "phone": "+79990001122",
+  "email": "anna.smirnova@example.com",
+  "role": "psychologist",
+  "accessUntil": "2027-12-31",
+  "expiresAt": "2027-01-31T23:59:59Z"
+}
+```
+
+Response:
+
+```json
+{
+  "invitationToken": "8ec0f5b9-b9a2-4e35-8131-86f8cdad6748",
+  "invitationUrl": "http://localhost:3000/invitations/8ec0f5b9-b9a2-4e35-8131-86f8cdad6748"
+}
+```
+
+Notes:
+
+- `accessUntil` supports both `YYYY-MM-DD` and RFC3339
+- `expiresAt` supports both `YYYY-MM-DD` and RFC3339
+- when `expiresAt` is sent as `YYYY-MM-DD`, BFF interprets it as the end of that day
+- if the same email is invited again before registration, the previous unused invitation is replaced
+- the frontend should route `invitationUrl` to the password setup page
+
+### 4. Complete Invitation Registration
+
+`POST /public/v1/auth/register`
+
+Request:
+
+```json
+{
+  "token": "8ec0f5b9-b9a2-4e35-8131-86f8cdad6748",
+  "password": "StrongPass123"
+}
+```
+
+Response:
+
+```json
+{
+  "accessToken": "jwt-access-token",
+  "refreshToken": "jwt-refresh-token",
+  "expiresIn": 900,
+  "role": "psychologist"
+}
+```
+
+### 5. Get Current Profile
+
+`GET /api/v1/auth/profile`
+
+Requires:
+
+- `Authorization: Bearer <accessToken>`
+
+Response:
+
+```json
+{
+  "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "email": "anna.smirnova@example.com",
+  "fullName": "Анна Смирнова",
+  "phone": "+79990001122",
+  "role": "psychologist",
+  "status": "active",
+  "photoUrl": "",
+  "about": "",
+  "accessUntil": "2027-12-31T00:00:00Z"
+}
+```
+
+`status` values:
+
+- `active`
+- `inactive`
+- `blocked`
+
+### 6. Update Current Profile
+
+`PATCH /api/v1/auth/profile`
+
+Request:
+
+```json
+{
+  "photoUrl": "https://example.com/avatar.jpg",
+  "about": "Практикующий профориентолог"
+}
+```
+
+### 7. Get Public Profile
+
+`GET /public/v1/profiles/{userId}`
+
+Response:
+
+```json
+{
+  "fullName": "Анна Смирнова",
+  "photoUrl": "https://example.com/avatar.jpg",
+  "about": "Практикующий профориентолог"
+}
+```
+
+### 8. Block User
+
+`POST /api/v1/auth/users/block`
+
+Administrator only.
+
+Request:
+
+```json
+{
+  "email": "anna.smirnova@example.com"
+}
+```
+
+### 9. Unblock User
+
+`POST /api/v1/auth/users/unblock`
+
+Administrator only.
 
 ## Candidate Flow
 

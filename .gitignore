@@ -4,3 +4,5 @@ certs
 .pycache
 .gocache
 .gomodcache
+.tools
+.DS_Store

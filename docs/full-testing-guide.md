@@ -22,6 +22,7 @@
 - `task`
 - `openssl`
 - `jq`
+- `python3`
 
 ## 2. Prepare Environment
 
@@ -88,6 +89,47 @@ DEFAULT_CLIENT_REPORT_FORMAT=client_docx
 - для обратной совместимости также поддерживается `settings.limits.time_limit_sec`
 - в примерах ниже можно оставлять `time_limit_sec`
 
+### 2.3 Create auth-go `.env`
+
+Создай файл:
+
+[`services/auth-go/.env`](/Users/globalarray/hack-rnd-2026-spring/services/auth-go/.env)
+
+На основе примера:
+
+[`services/auth-go/.env.example`](/Users/globalarray/hack-rnd-2026-spring/services/auth-go/.env.example)
+
+Для локального MVP достаточно:
+
+```env
+SERVICE_PORT=50037
+CERTS_PATH=/etc/certs
+MIGRATIONS_PATH=/app/internal/migrations/init.sql
+
+AUTH_PG_HOST=postgres_auth
+AUTH_PG_PORT=5432
+AUTH_PG_USER=hack
+AUTH_PG_PASSWORD=hack
+AUTH_PG_DATABASE=authdb
+AUTH_PG_SSL_MODE=disable
+
+ACCESS_SECRET_KEY=change-me-access-secret
+REFRESH_SECRET_KEY=change-me-refresh-secret
+
+AUTH_BOOTSTRAP_ADMIN_EMAIL=admin@profdnk.local
+AUTH_BOOTSTRAP_ADMIN_PASSWORD=admin12345
+AUTH_BOOTSTRAP_ADMIN_FULL_NAME=System Administrator
+AUTH_BOOTSTRAP_ADMIN_PHONE=+70000000000
+AUTH_BOOTSTRAP_ADMIN_ACCESS_UNTIL=2099-12-31
+AUTH_BOOTSTRAP_ADMIN_ROLE=admin
+```
+
+Что это даёт:
+
+- при первом запуске автоматически создаётся bootstrap admin
+- этот admin использует тот же endpoint логина, что и психологи
+- администратор может создавать invitation link для психологов
+
 ## 3. Start the Stack
 
 Перед стартом полезно синхронизировать сгенерированные контракты:
@@ -119,9 +161,11 @@ docker compose --env-file services/engine-go/.env ps
 Ожидаемые сервисы:
 
 - `postgres_engine`
+- `postgres_auth`
 - `migrations`
 - `test-engine`
 - `analytics-python`
+- `auth-go`
 - `bff-go`
 
 Проверить BFF:
@@ -136,7 +180,79 @@ curl http://localhost:8080/health
 {"status":"ok"}
 ```
 
-## 4. Create Survey
+## 4. Authentication Flow
+
+Если хочется прогнать весь auth-flow одной командой, можно использовать:
+
+```bash
+bash /Users/globalarray/hack-rnd-2026-spring/scripts/smoke-test-auth-bff.sh
+```
+
+### 4.1 Login As Bootstrap Admin
+
+```bash
+ADMIN_LOGIN_RESP=$(curl -s -X POST http://localhost:8080/public/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "email": "admin@profdnk.local",
+    "password": "admin12345"
+  }')
+
+echo "$ADMIN_LOGIN_RESP" | jq
+ADMIN_ACCESS_TOKEN=$(echo "$ADMIN_LOGIN_RESP" | jq -r '.accessToken')
+ADMIN_REFRESH_TOKEN=$(echo "$ADMIN_LOGIN_RESP" | jq -r '.refreshToken')
+```
+
+### 4.2 Create Invitation For Psychologist
+
+```bash
+INVITATION_RESP=$(curl -s -X POST http://localhost:8080/api/v1/auth/invitations \
+  -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $ADMIN_ACCESS_TOKEN" \
+  -d '{
+    "fullName": "Анна Смирнова",
+    "phone": "+79990001122",
+    "email": "anna.smirnova@example.com",
+    "role": "psychologist",
+    "accessUntil": "2027-12-31",
+    "expiresAt": "2027-01-31T23:59:59Z"
+  }')
+
+echo "$INVITATION_RESP" | jq
+INVITATION_TOKEN=$(echo "$INVITATION_RESP" | jq -r '.invitationToken')
+```
+
+Если нужно перевыпустить ссылку для того же email до регистрации, можно просто ещё раз вызвать эту же ручку: предыдущая неиспользованная invitation будет заменена новой.
+
+### 4.3 Complete Registration As Psychologist
+
+```bash
+REGISTER_RESP=$(curl -s -X POST http://localhost:8080/public/v1/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "token": "'"$INVITATION_TOKEN"'",
+    "password": "StrongPass123"
+  }')
+
+echo "$REGISTER_RESP" | jq
+PSY_ACCESS_TOKEN=$(echo "$REGISTER_RESP" | jq -r '.accessToken')
+```
+
+### 4.4 Get Current Profile
+
+```bash
+curl -s http://localhost:8080/api/v1/auth/profile \
+  -H "Authorization: Bearer $PSY_ACCESS_TOKEN" \
+  | jq
+```
+
+Проверь:
+
+- `role = "psychologist"`
+- `status = "active"`
+- `accessUntil` заполнен
+
+## 5. Create Survey
 
 Важно: поле `type` должно быть одним из строго допустимых значений:
 

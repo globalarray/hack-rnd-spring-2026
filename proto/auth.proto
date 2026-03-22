@@ -27,6 +27,8 @@ message ProfileResponse {
     string role = 5;
     string photo_url = 6;
     string about = 7;
+    string status = 8;
+    google.protobuf.Timestamp access_until = 9;
 }
 
 message UnBlockUserRequest{

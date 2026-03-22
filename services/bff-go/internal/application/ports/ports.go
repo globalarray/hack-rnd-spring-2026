@@ -15,6 +15,18 @@ type EngineGateway interface {
 	GetSessionAnalytics(ctx context.Context, sessionID string) (*domain.SessionAnalytics, error)
 }
 
+type AuthGateway interface {
+	Login(ctx context.Context, email, password string) (*domain.AuthTokens, error)
+	RefreshToken(ctx context.Context, refreshToken string) (*domain.AuthTokens, error)
+	Register(ctx context.Context, token, password string) (*domain.AuthTokens, error)
+	GetProfile(ctx context.Context, authorization string) (*domain.UserProfile, error)
+	UpdateProfile(ctx context.Context, authorization string, input domain.ProfileUpdate) (*domain.UserProfile, error)
+	GetPublicProfile(ctx context.Context, userID string) (*domain.PublicProfile, error)
+	CreateInvitation(ctx context.Context, authorization string, input domain.InvitationDraft) (string, error)
+	BlockUser(ctx context.Context, authorization, email string) error
+	UnblockUser(ctx context.Context, authorization, email string) error
+}
+
 type AnalyticsGateway interface {
 	GenerateReport(ctx context.Context, analytics domain.SessionAnalytics, format domain.ReportFormat) (*domain.GeneratedReport, error)
 }

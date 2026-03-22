@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -22,13 +23,15 @@ type Handler struct {
 	log      *slog.Logger
 	surveys  *usecase.SurveyUseCase
 	sessions *usecase.SessionUseCase
+	auth     *usecase.AuthUseCase
 }
 
-func NewRouter(log *slog.Logger, surveys *usecase.SurveyUseCase, sessions *usecase.SessionUseCase) http.Handler {
+func NewRouter(log *slog.Logger, surveys *usecase.SurveyUseCase, sessions *usecase.SessionUseCase, authUseCase *usecase.AuthUseCase) http.Handler {
 	handler := &Handler{
 		log:      log,
 		surveys:  surveys,
 		sessions: sessions,
+		auth:     authUseCase,
 	}
 
 	router := chi.NewRouter()
@@ -38,7 +41,7 @@ func NewRouter(log *slog.Logger, surveys *usecase.SurveyUseCase, sessions *useca
 	router.Use(middleware.Recoverer)
 	router.Use(cors.Handler(cors.Options{
 		AllowedOrigins: []string{"*"},
-		AllowedMethods: []string{"GET", "POST", "OPTIONS"},
+		AllowedMethods: []string{"GET", "POST", "PATCH", "OPTIONS"},
 		AllowedHeaders: []string{"Accept", "Authorization", "Content-Type"},
 	}))
 
@@ -51,6 +54,11 @@ func NewRouter(log *slog.Logger, surveys *usecase.SurveyUseCase, sessions *useca
 		r.Get("/surveys", handler.listSurveys)
 		r.Get("/sessions/{sessionId}/analytics", handler.getSessionAnalytics)
 		r.Post("/sessions/{sessionId}/report/send", handler.sendSessionReport)
+		r.Get("/auth/profile", handler.getProfile)
+		r.Patch("/auth/profile", handler.updateProfile)
+		r.Post("/auth/invitations", handler.createInvitation)
+		r.Post("/auth/users/block", handler.blockUser)
+		r.Post("/auth/users/unblock", handler.unblockUser)
 	})
 
 	router.Route("/public/v1", func(r chi.Router) {
@@ -58,6 +66,10 @@ func NewRouter(log *slog.Logger, surveys *usecase.SurveyUseCase, sessions *useca
 		r.Post("/sessions/start", handler.startSession)
 		r.Get("/sessions/{sessionId}/current-question", handler.getCurrentQuestion)
 		r.Post("/sessions/{sessionId}/answers", handler.submitAnswer)
+		r.Post("/auth/login", handler.login)
+		r.Post("/auth/refresh", handler.refreshToken)
+		r.Post("/auth/register", handler.register)
+		r.Get("/profiles/{userId}", handler.getPublicProfile)
 	})
 
 	return router
@@ -100,6 +112,38 @@ type submitAnswerRequest struct {
 
 type sendReportRequest struct {
 	ReportFormat string `json:"reportFormat"`
+}
+
+type loginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type refreshTokenRequest struct {
+	RefreshToken string `json:"refreshToken"`
+}
+
+type registerRequest struct {
+	Token    string `json:"token"`
+	Password string `json:"password"`
+}
+
+type updateProfileRequest struct {
+	PhotoURL string `json:"photoUrl"`
+	About    string `json:"about"`
+}
+
+type createInvitationRequest struct {
+	FullName    string `json:"fullName"`
+	Phone       string `json:"phone"`
+	Email       string `json:"email"`
+	Role        string `json:"role"`
+	AccessUntil string `json:"accessUntil"`
+	ExpiresAt   string `json:"expiresAt"`
+}
+
+type userEmailRequest struct {
+	Email string `json:"email"`
 }
 
 func (h *Handler) createSurvey(w http.ResponseWriter, r *http.Request) {
@@ -307,6 +351,167 @@ func (h *Handler) sendSessionReport(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
+	var req loginRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, err)
+		return
+	}
+
+	tokens, err := h.auth.Login(r.Context(), req.Email, req.Password)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, mapTokens(tokens))
+}
+
+func (h *Handler) refreshToken(w http.ResponseWriter, r *http.Request) {
+	var req refreshTokenRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, err)
+		return
+	}
+
+	tokens, err := h.auth.RefreshToken(r.Context(), req.RefreshToken)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, mapTokens(tokens))
+}
+
+func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
+	var req registerRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, err)
+		return
+	}
+
+	tokens, err := h.auth.Register(r.Context(), req.Token, req.Password)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, mapTokens(tokens))
+}
+
+func (h *Handler) getProfile(w http.ResponseWriter, r *http.Request) {
+	profile, err := h.auth.GetProfile(r.Context(), r.Header.Get("Authorization"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, mapProfile(profile))
+}
+
+func (h *Handler) updateProfile(w http.ResponseWriter, r *http.Request) {
+	var req updateProfileRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, err)
+		return
+	}
+
+	profile, err := h.auth.UpdateProfile(r.Context(), r.Header.Get("Authorization"), domain.ProfileUpdate{
+		PhotoURL: req.PhotoURL,
+		About:    req.About,
+	})
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, mapProfile(profile))
+}
+
+func (h *Handler) getPublicProfile(w http.ResponseWriter, r *http.Request) {
+	userID := chi.URLParam(r, "userId")
+
+	profile, err := h.auth.GetPublicProfile(r.Context(), userID)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"fullName": profile.FullName,
+		"photoUrl": profile.PhotoURL,
+		"about":    profile.About,
+	})
+}
+
+func (h *Handler) createInvitation(w http.ResponseWriter, r *http.Request) {
+	var req createInvitationRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, err)
+		return
+	}
+
+	accessUntil, err := parseFlexibleDate(req.AccessUntil)
+	if err != nil {
+		writeError(w, fmt.Errorf("%w: accessUntil must be RFC3339 or YYYY-MM-DD", domain.ErrInvalidInput))
+		return
+	}
+
+	expiresAt, err := parseFlexibleDateTime(req.ExpiresAt, true)
+	if err != nil {
+		writeError(w, fmt.Errorf("%w: expiresAt must be RFC3339 or YYYY-MM-DD", domain.ErrInvalidInput))
+		return
+	}
+
+	invitation, err := h.auth.CreateInvitation(r.Context(), r.Header.Get("Authorization"), domain.InvitationDraft{
+		FullName:    req.FullName,
+		Phone:       req.Phone,
+		Email:       req.Email,
+		Role:        req.Role,
+		AccessUntil: accessUntil,
+		ExpiresAt:   expiresAt,
+	})
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"invitationToken": invitation.Token,
+		"invitationUrl":   invitation.URL,
+	})
+}
+
+func (h *Handler) blockUser(w http.ResponseWriter, r *http.Request) {
+	var req userEmailRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, err)
+		return
+	}
+
+	if err := h.auth.BlockUser(r.Context(), r.Header.Get("Authorization"), req.Email); err != nil {
+		writeError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"status": "blocked", "email": req.Email})
+}
+
+func (h *Handler) unblockUser(w http.ResponseWriter, r *http.Request) {
+	var req userEmailRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, err)
+		return
+	}
+
+	if err := h.auth.UnblockUser(r.Context(), r.Header.Get("Authorization"), req.Email); err != nil {
+		writeError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"status": "unblocked", "email": req.Email})
+}
+
 func mapQuestion(question *domain.Question) map[string]any {
 	if question == nil {
 		return nil
@@ -326,6 +531,67 @@ func mapQuestion(question *domain.Question) map[string]any {
 		"text":       question.Text,
 		"answers":    answers,
 	}
+}
+
+func mapTokens(tokens *domain.AuthTokens) map[string]any {
+	if tokens == nil {
+		return nil
+	}
+
+	return map[string]any{
+		"accessToken":  tokens.AccessToken,
+		"refreshToken": tokens.RefreshToken,
+		"expiresIn":    tokens.ExpiresIn,
+		"role":         tokens.Role,
+	}
+}
+
+func mapProfile(profile *domain.UserProfile) map[string]any {
+	if profile == nil {
+		return nil
+	}
+
+	payload := map[string]any{
+		"id":          profile.ID,
+		"email":       profile.Email,
+		"fullName":    profile.FullName,
+		"phone":       profile.Phone,
+		"role":        profile.Role,
+		"status":      profile.Status,
+		"photoUrl":    profile.PhotoURL,
+		"about":       profile.About,
+		"accessUntil": "",
+	}
+
+	if !profile.AccessUntil.IsZero() {
+		payload["accessUntil"] = profile.AccessUntil.Format(time.RFC3339)
+	}
+
+	return payload
+}
+
+func parseFlexibleDate(value string) (time.Time, error) {
+	return parseFlexibleDateTime(value, false)
+}
+
+func parseFlexibleDateTime(value string, endOfDay bool) (time.Time, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return time.Time{}, fmt.Errorf("empty time")
+	}
+
+	if parsed, err := time.Parse(time.RFC3339, value); err == nil {
+		return parsed, nil
+	}
+
+	if parsed, err := time.Parse("2006-01-02", value); err == nil {
+		if endOfDay {
+			return parsed.Add(23*time.Hour + 59*time.Minute + 59*time.Second), nil
+		}
+		return parsed, nil
+	}
+
+	return time.Time{}, fmt.Errorf("unsupported time format")
 }
 
 var errEmptyBody = errors.New("empty body")
