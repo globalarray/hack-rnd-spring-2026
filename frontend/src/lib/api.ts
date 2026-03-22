@@ -639,9 +639,14 @@ export const api = {
       return mockBackend.startSession(input);
     }
 
+    const { surveyId, clientMetadata } = input;
+
     return request<StartSessionResult>("/public/v1/sessions", {
       method: "POST",
-      body: JSON.stringify(input)
+      body: JSON.stringify({
+        surveyId,
+        clientMetadata
+      })
     });
   },
 

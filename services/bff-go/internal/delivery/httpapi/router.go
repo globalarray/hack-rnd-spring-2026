@@ -117,6 +117,7 @@ type createSurveyAnswer struct {
 
 type startSessionRequest struct {
 	SurveyID       string         `json:"surveyId"`
+	ShareLinkID    string         `json:"shareLinkId"`
 	ClientMetadata map[string]any `json:"clientMetadata"`
 }
 
