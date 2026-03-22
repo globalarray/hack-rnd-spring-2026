@@ -3,6 +3,7 @@ version: '3'
 vars:
   ROOT_DIR: '{{.TASKFILE_DIR}}'
   TOOLS_BIN: '{{.TASKFILE_DIR}}/.tools/bin'
+  PYTHON_PROTO_VENV: '{{.TASKFILE_DIR}}/.tools/python-proto-venv'
 
 tasks:
   up:
@@ -149,33 +150,45 @@ tasks:
           fi
         }
 
-        if python3 - <<'PY' >/dev/null 2>&1
-        import grpc_tools.protoc  # noqa: F401
-        PY
-        then
-          echo "grpc_tools already installed"
-          exit 0
+        if ! command -v python3 >/dev/null 2>&1; then
+          echo "python3 not found. Install Python 3 and rerun the task."
+          exit 1
         fi
 
-        if ! python3 -m pip --version >/dev/null 2>&1; then
-          echo "pip not found, bootstrapping..."
+        venv_dir="{{.PYTHON_PROTO_VENV}}"
+        venv_python="$venv_dir/bin/python"
 
-          if python3 -m ensurepip --upgrade >/dev/null 2>&1; then
-            echo "pip bootstrapped via ensurepip"
-          elif command -v brew >/dev/null 2>&1; then
-            brew install python
-          elif command -v apt-get >/dev/null 2>&1; then
-            run_privileged apt-get update
-            run_privileged apt-get install -y python3-pip python3-venv
-          elif command -v apk >/dev/null 2>&1; then
-            run_privileged apk add py3-pip python3
-          else
-            echo "Could not install pip automatically. Install python3-pip manually and rerun the task."
-            exit 1
+        if [ ! -x "$venv_python" ]; then
+          mkdir -p "$(dirname "$venv_dir")"
+          echo "Creating local virtualenv for proto generation..."
+
+          if ! python3 -m venv "$venv_dir" >/dev/null 2>&1; then
+            if command -v apt-get >/dev/null 2>&1; then
+              run_privileged apt-get update
+              run_privileged apt-get install -y python3-venv
+            elif command -v apk >/dev/null 2>&1; then
+              run_privileged apk add py3-virtualenv python3
+            elif command -v brew >/dev/null 2>&1; then
+              brew install python
+            else
+              echo "Could not create python virtualenv automatically. Install python3-venv and rerun the task."
+              exit 1
+            fi
+
+            python3 -m venv "$venv_dir"
           fi
         fi
 
-        python3 -m pip install --user grpcio grpcio-tools protobuf
+        if "$venv_python" - <<'PY' >/dev/null 2>&1
+        import grpc_tools.protoc  # noqa: F401
+        PY
+        then
+          echo "grpc_tools already installed in local virtualenv"
+          exit 0
+        fi
+
+        "$venv_python" -m pip install --upgrade pip
+        "$venv_python" -m pip install grpcio grpcio-tools protobuf
   proto:engine-go:
     desc: "Генерирует grpc_out и validate_out для engine-go"
     deps: [proto:ensure-go-tools]
@@ -276,6 +289,7 @@ tasks:
         rebuild="${REBUILD_PROTO:-false}"
         proto_root="{{.ROOT_DIR}}/proto"
         out_dir="{{.ROOT_DIR}}/services/analytics-python"
+        venv_python="{{.PYTHON_PROTO_VENV}}/bin/python"
         py_out="$out_dir/analytics_pb2.py"
         grpc_out="$out_dir/analytics_pb2_grpc.py"
 
@@ -289,7 +303,7 @@ tasks:
           exit 0
         fi
 
-        python3 -m grpc_tools.protoc \
+        "$venv_python" -m grpc_tools.protoc \
           -I "$proto_root" \
           --python_out="$out_dir" \
           --grpc_python_out="$out_dir" \
@@ -301,6 +315,7 @@ tasks:
       - |
         set -eu
         rebuild="${REBUILD_PROTO:-false}"
+        venv_python="{{.PYTHON_PROTO_VENV}}/bin/python"
         proto_files="$(find "{{.ROOT_DIR}}/services" -maxdepth 2 -type f -name '*.proto' | sort || true)"
 
         if [ -z "$proto_files" ]; then
@@ -325,7 +340,7 @@ tasks:
             continue
           fi
 
-          python3 -m grpc_tools.protoc \
+          "$venv_python" -m grpc_tools.protoc \
             -I "$proto_dir" \
             --python_out="$proto_dir" \
             --grpc_python_out="$proto_dir" \
