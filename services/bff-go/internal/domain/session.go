@@ -18,6 +18,16 @@ type SessionAnalytics struct {
 	Responses      []AnalyticsResponse
 }
 
+type SurveySessionSummary struct {
+	SurveyID       string
+	SessionID      string
+	ClientMetadata ClientMetadata
+	Status         string
+	ResponsesCount int32
+	StartedAt      string
+	FinishedAt     string
+}
+
 type AnalyticsResponse struct {
 	QuestionID     string
 	QuestionType   QuestionType

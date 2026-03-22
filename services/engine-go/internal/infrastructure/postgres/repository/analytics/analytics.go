@@ -40,3 +40,14 @@ func (r *analyticsRepository) GetSessionData(ctx context.Context, sessionID stri
 
 	return mapSessionData(&sessionRecord, responseRecords), nil
 }
+
+func (r *analyticsRepository) ListSurveySessions(ctx context.Context, surveyID string) (*servicedto.ListSurveySessionsOutput, error) {
+	const op = "analyticsRepository.ListSurveySessions"
+
+	var records []repositorydto.SurveySessionRecord
+	if err := r.db.SelectContext(ctx, &records, queryListSurveySessions, surveyID); err != nil {
+		return nil, fmt.Errorf("%s: list survey sessions: %w", op, err)
+	}
+
+	return mapSurveySessions(records), nil
+}

@@ -61,6 +61,7 @@ func NewRouter(log *slog.Logger, surveys *usecase.SurveyUseCase, sessions *useca
 
 			r.Post("/surveys", handler.createSurvey)
 			r.Get("/surveys", handler.listSurveys)
+			r.Get("/surveys/{surveyId}/sessions", handler.listSurveySessions)
 			r.Get("/sessions/{sessionId}/analytics", handler.getSessionAnalytics)
 			r.Post("/sessions/{sessionId}/report/send", handler.sendSessionReport)
 			r.Get("/auth/profile", handler.getProfile)
@@ -368,6 +369,30 @@ func (h *Handler) getSessionAnalytics(w http.ResponseWriter, r *http.Request) {
 		"clientMetadata": analytics.ClientMetadata.Values(),
 		"responses":      responses,
 	})
+}
+
+func (h *Handler) listSurveySessions(w http.ResponseWriter, r *http.Request) {
+	surveyID := chi.URLParam(r, "surveyId")
+	sessions, err := h.sessions.ListSurveySessions(r.Context(), surveyID)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+
+	items := make([]map[string]any, 0, len(sessions))
+	for _, session := range sessions {
+		items = append(items, map[string]any{
+			"sessionId":      session.SessionID,
+			"surveyId":       session.SurveyID,
+			"clientMetadata": session.ClientMetadata.Values(),
+			"status":         session.Status,
+			"startedAt":      session.StartedAt,
+			"finishedAt":     session.FinishedAt,
+			"responsesCount": session.ResponsesCount,
+		})
+	}
+
+	writeJSON(w, http.StatusOK, items)
 }
 
 func (h *Handler) sendSessionReport(w http.ResponseWriter, r *http.Request) {

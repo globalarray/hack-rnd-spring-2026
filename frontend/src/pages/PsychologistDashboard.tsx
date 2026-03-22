@@ -135,7 +135,10 @@ export function PsychologistDashboard() {
     api
       .listSurveySessions(session.tokens.accessToken, selectedSurveyId)
       .then(setSessions)
-      .catch(() => setSessions([]));
+      .catch((loadError) => {
+        setSessions([]);
+        setError(readErrorMessage(loadError));
+      });
   }, [selectedSurveyId, session]);
 
   useEffect(() => {
@@ -585,7 +588,7 @@ export function PsychologistDashboard() {
                   </div>
                   <div>
                     <span>Завершено {formatDateTime(sessionRow.finishedAt)}</span>
-                    <span>{sessionRow.responses.length} ответов</span>
+                    <span>{sessionRow.responsesCount ?? sessionRow.responses.length} ответов</span>
                   </div>
                   <div className="table-row__actions">
                     <GhostButton type="button" onClick={() => handleOpenPsychologistReport(sessionRow.sessionId)}>

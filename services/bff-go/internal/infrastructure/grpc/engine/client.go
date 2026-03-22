@@ -14,12 +14,13 @@ import (
 )
 
 const (
-	createSurveyMethod     = "/testengine.v1.SurveyAdminService/CreateSurvey"
-	listSurveysMethod      = "/testengine.v1.SurveyAdminService/ListSurveys"
-	startSessionMethod     = "/testengine.v1.SessionClientService/StartSession"
-	currentQuestionMethod  = "/testengine.v1.SessionClientService/GetCurrentQuestion"
-	submitAnswerMethod     = "/testengine.v1.SessionClientService/SubmitAnswer"
-	sessionAnalyticsMethod = "/testengine.v1.AnalyticsService/GetSessionDataForAnalytics"
+	createSurveyMethod       = "/testengine.v1.SurveyAdminService/CreateSurvey"
+	listSurveysMethod        = "/testengine.v1.SurveyAdminService/ListSurveys"
+	startSessionMethod       = "/testengine.v1.SessionClientService/StartSession"
+	currentQuestionMethod    = "/testengine.v1.SessionClientService/GetCurrentQuestion"
+	submitAnswerMethod       = "/testengine.v1.SessionClientService/SubmitAnswer"
+	sessionAnalyticsMethod   = "/testengine.v1.AnalyticsService/GetSessionDataForAnalytics"
+	listSurveySessionsMethod = "/testengine.v1.AnalyticsService/ListSurveySessionsForAnalytics"
 )
 
 type Client struct {
@@ -216,6 +217,44 @@ func (c *Client) GetSessionAnalytics(ctx context.Context, sessionID string) (*do
 		ClientMetadata: clientMetadata,
 		Responses:      responses,
 	}, nil
+}
+
+func (c *Client) ListSurveySessions(ctx context.Context, surveyID string) ([]domain.SurveySessionSummary, error) {
+	req := &enginepb.ListSurveySessionsRequest{SurveyId: surveyID}
+	resp := &enginepb.ListSurveySessionsResponse{}
+	if err := c.conn.Invoke(ctx, listSurveySessionsMethod, req, resp); err != nil {
+		return nil, err
+	}
+
+	sessions := make([]domain.SurveySessionSummary, 0, len(resp.GetSessions()))
+	for _, session := range resp.GetSessions() {
+		respSurveyID := strings.TrimSpace(session.GetSurveyId())
+		if _, err := uuid.Parse(respSurveyID); err != nil {
+			return nil, fmt.Errorf("%w: engine survey sessions response has invalid surveyId", domain.ErrUpstreamResponse)
+		}
+
+		respSessionID := strings.TrimSpace(session.GetSessionId())
+		if _, err := uuid.Parse(respSessionID); err != nil {
+			return nil, fmt.Errorf("%w: engine survey sessions response has invalid sessionId", domain.ErrUpstreamResponse)
+		}
+
+		clientMetadata, err := domain.ParseClientMetadataJSON(session.GetClientMetadataJson())
+		if err != nil {
+			return nil, fmt.Errorf("%w: engine survey sessions response contains invalid clientMetadataJson", domain.ErrUpstreamResponse)
+		}
+
+		sessions = append(sessions, domain.SurveySessionSummary{
+			SurveyID:       respSurveyID,
+			SessionID:      respSessionID,
+			ClientMetadata: clientMetadata,
+			Status:         strings.ToLower(strings.TrimSpace(session.GetStatus())),
+			ResponsesCount: session.GetResponsesCount(),
+			StartedAt:      session.GetStartedAt(),
+			FinishedAt:     session.GetCompletedAt(),
+		})
+	}
+
+	return sessions, nil
 }
 
 func structFromMap(values map[string]any) (*structpb.Struct, error) {

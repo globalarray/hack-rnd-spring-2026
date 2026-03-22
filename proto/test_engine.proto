@@ -28,6 +28,7 @@
 
   service AnalyticsService {
     rpc GetSessionDataForAnalytics(GetSessionDataRequest) returns (SessionAnalyticsResponse);
+    rpc ListSurveySessionsForAnalytics(ListSurveySessionsRequest) returns (ListSurveySessionsResponse);
   }
 
   enum QuestionType {
@@ -138,11 +139,29 @@
     string session_id = 1 [(validate.rules).string.uuid = true];
   }
 
+  message ListSurveySessionsRequest {
+    string survey_id = 1 [(validate.rules).string.uuid = true];
+  }
+
   message SessionAnalyticsResponse {
     string survey_id = 1;
     string session_id = 2;
     string client_metadata_json = 3;
     repeated RawClientResponse responses = 4;
+  }
+
+  message ListSurveySessionsResponse {
+    repeated SurveySessionSummary sessions = 1;
+  }
+
+  message SurveySessionSummary {
+    string survey_id = 1;
+    string session_id = 2;
+    string client_metadata_json = 3;
+    string status = 4;
+    int32 responses_count = 5;
+    string started_at = 6;
+    string completed_at = 7;
   }
 
   // Обогащенные данные для расчетов метрик и генерации DOCX/HTML

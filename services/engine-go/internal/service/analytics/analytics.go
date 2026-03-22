@@ -9,6 +9,7 @@ import (
 
 type analyticsRepository interface {
 	GetSessionData(ctx context.Context, sessionID string) (*dto.GetSessionDataOutput, error)
+	ListSurveySessions(ctx context.Context, surveyID string) (*dto.ListSurveySessionsOutput, error)
 }
 
 type service struct {
@@ -23,6 +24,15 @@ func (s *service) GetSessionData(ctx context.Context, input *dto.GetSessionDataI
 	data, err := s.repo.GetSessionData(ctx, input.SessionID)
 	if err != nil {
 		return nil, fmt.Errorf("analytics.GetSessionData: %w", err)
+	}
+
+	return data, nil
+}
+
+func (s *service) ListSurveySessions(ctx context.Context, input *dto.ListSurveySessionsInput) (*dto.ListSurveySessionsOutput, error) {
+	data, err := s.repo.ListSurveySessions(ctx, input.SurveyID)
+	if err != nil {
+		return nil, fmt.Errorf("analytics.ListSurveySessions: %w", err)
 	}
 
 	return data, nil

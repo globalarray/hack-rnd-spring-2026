@@ -94,6 +94,10 @@ func (s *engineGatewayStub) GetSessionAnalytics(context.Context, string) (*domai
 	panic("unexpected call to GetSessionAnalytics")
 }
 
+func (s *engineGatewayStub) ListSurveySessions(context.Context, string) ([]domain.SurveySessionSummary, error) {
+	panic("unexpected call to ListSurveySessions")
+}
+
 type analyticsGatewayStub struct{}
 
 func (analyticsGatewayStub) GenerateReport(context.Context, domain.SessionAnalytics, domain.ReportFormat) (*domain.GeneratedReport, error) {

@@ -25,3 +25,21 @@ func mapGetSessionDataOutput(out *servicedto.GetSessionDataOutput) *pb.SessionAn
 		Responses:          responses,
 	}
 }
+
+func mapListSurveySessionsOutput(out *servicedto.ListSurveySessionsOutput) *pb.ListSurveySessionsResponse {
+	sessions := make([]*pb.SurveySessionSummary, 0, len(out.Sessions))
+
+	for _, session := range out.Sessions {
+		sessions = append(sessions, &pb.SurveySessionSummary{
+			SurveyId:           session.SurveyID,
+			SessionId:          session.SessionID,
+			ClientMetadataJson: session.ClientMetadataJSON,
+			Status:             session.Status,
+			ResponsesCount:     session.ResponsesCount,
+			StartedAt:          session.StartedAt,
+			CompletedAt:        session.CompletedAt,
+		})
+	}
+
+	return &pb.ListSurveySessionsResponse{Sessions: sessions}
+}

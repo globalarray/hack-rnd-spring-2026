@@ -226,6 +226,7 @@ export type SessionRecord = {
   status: SessionStatus;
   startedAt: string;
   finishedAt?: string;
+  responsesCount?: number;
   responses: SessionResponse[];
   reportDelivery?: ReportDelivery;
 };

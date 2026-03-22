@@ -347,7 +347,8 @@ var SessionClientService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	AnalyticsService_GetSessionDataForAnalytics_FullMethodName = "/testengine.v1.AnalyticsService/GetSessionDataForAnalytics"
+	AnalyticsService_GetSessionDataForAnalytics_FullMethodName     = "/testengine.v1.AnalyticsService/GetSessionDataForAnalytics"
+	AnalyticsService_ListSurveySessionsForAnalytics_FullMethodName = "/testengine.v1.AnalyticsService/ListSurveySessionsForAnalytics"
 )
 
 // AnalyticsServiceClient is the client API for AnalyticsService service.
@@ -355,6 +356,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AnalyticsServiceClient interface {
 	GetSessionDataForAnalytics(ctx context.Context, in *GetSessionDataRequest, opts ...grpc.CallOption) (*SessionAnalyticsResponse, error)
+	ListSurveySessionsForAnalytics(ctx context.Context, in *ListSurveySessionsRequest, opts ...grpc.CallOption) (*ListSurveySessionsResponse, error)
 }
 
 type analyticsServiceClient struct {
@@ -375,11 +377,22 @@ func (c *analyticsServiceClient) GetSessionDataForAnalytics(ctx context.Context,
 	return out, nil
 }
 
+func (c *analyticsServiceClient) ListSurveySessionsForAnalytics(ctx context.Context, in *ListSurveySessionsRequest, opts ...grpc.CallOption) (*ListSurveySessionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListSurveySessionsResponse)
+	err := c.cc.Invoke(ctx, AnalyticsService_ListSurveySessionsForAnalytics_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AnalyticsServiceServer is the server API for AnalyticsService service.
 // All implementations must embed UnimplementedAnalyticsServiceServer
 // for forward compatibility.
 type AnalyticsServiceServer interface {
 	GetSessionDataForAnalytics(context.Context, *GetSessionDataRequest) (*SessionAnalyticsResponse, error)
+	ListSurveySessionsForAnalytics(context.Context, *ListSurveySessionsRequest) (*ListSurveySessionsResponse, error)
 	mustEmbedUnimplementedAnalyticsServiceServer()
 }
 
@@ -392,6 +405,9 @@ type UnimplementedAnalyticsServiceServer struct{}
 
 func (UnimplementedAnalyticsServiceServer) GetSessionDataForAnalytics(context.Context, *GetSessionDataRequest) (*SessionAnalyticsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSessionDataForAnalytics not implemented")
+}
+func (UnimplementedAnalyticsServiceServer) ListSurveySessionsForAnalytics(context.Context, *ListSurveySessionsRequest) (*ListSurveySessionsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListSurveySessionsForAnalytics not implemented")
 }
 func (UnimplementedAnalyticsServiceServer) mustEmbedUnimplementedAnalyticsServiceServer() {}
 func (UnimplementedAnalyticsServiceServer) testEmbeddedByValue()                          {}
@@ -432,6 +448,24 @@ func _AnalyticsService_GetSessionDataForAnalytics_Handler(srv interface{}, ctx c
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AnalyticsService_ListSurveySessionsForAnalytics_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSurveySessionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AnalyticsServiceServer).ListSurveySessionsForAnalytics(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AnalyticsService_ListSurveySessionsForAnalytics_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AnalyticsServiceServer).ListSurveySessionsForAnalytics(ctx, req.(*ListSurveySessionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AnalyticsService_ServiceDesc is the grpc.ServiceDesc for AnalyticsService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -442,6 +476,10 @@ var AnalyticsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetSessionDataForAnalytics",
 			Handler:    _AnalyticsService_GetSessionDataForAnalytics_Handler,
+		},
+		{
+			MethodName: "ListSurveySessionsForAnalytics",
+			Handler:    _AnalyticsService_ListSurveySessionsForAnalytics_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

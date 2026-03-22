@@ -13,6 +13,7 @@ type EngineGateway interface {
 	GetCurrentQuestion(ctx context.Context, sessionID string) (*domain.Question, error)
 	SubmitAnswer(ctx context.Context, input SubmitAnswerInput) (string, bool, error)
 	GetSessionAnalytics(ctx context.Context, sessionID string) (*domain.SessionAnalytics, error)
+	ListSurveySessions(ctx context.Context, surveyID string) ([]domain.SurveySessionSummary, error)
 }
 
 type AuthGateway interface {

@@ -123,6 +123,14 @@ func (uc *SessionUseCase) GetSessionAnalytics(ctx context.Context, sessionID str
 	return uc.engine.GetSessionAnalytics(ctx, sessionID)
 }
 
+func (uc *SessionUseCase) ListSurveySessions(ctx context.Context, surveyID string) ([]domain.SurveySessionSummary, error) {
+	if err := validateUUID("surveyId", surveyID); err != nil {
+		return nil, err
+	}
+
+	return uc.engine.ListSurveySessions(ctx, surveyID)
+}
+
 func (uc *SessionUseCase) SendClientReport(ctx context.Context, sessionID string, format domain.ReportFormat) (*domain.ReportDelivery, error) {
 	if err := validateUUID("sessionId", sessionID); err != nil {
 		return nil, err

@@ -7,3 +7,6 @@ var queryGetSessionData string
 
 //go:embed sql/get_session_responses.sql
 var queryGetSessionResponses string
+
+//go:embed sql/list_survey_sessions.sql
+var queryListSurveySessions string

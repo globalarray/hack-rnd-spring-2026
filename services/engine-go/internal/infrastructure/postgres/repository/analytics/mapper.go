@@ -1,6 +1,8 @@
 package analytics
 
 import (
+	"time"
+
 	repositorydto "sourcecraft.dev/benzo/testengine/internal/infrastructure/postgres/repository/analytics/dto"
 	servicedto "sourcecraft.dev/benzo/testengine/internal/service/analytics/dto"
 )
@@ -25,4 +27,27 @@ func mapSessionData(record *repositorydto.SessionDataRecord, responses []reposit
 	}
 
 	return out
+}
+
+func mapSurveySessions(records []repositorydto.SurveySessionRecord) *servicedto.ListSurveySessionsOutput {
+	sessions := make([]servicedto.SurveySessionSummary, 0, len(records))
+
+	for _, record := range records {
+		completedAt := ""
+		if record.CompletedAt.Valid {
+			completedAt = record.CompletedAt.Time.Format(time.RFC3339)
+		}
+
+		sessions = append(sessions, servicedto.SurveySessionSummary{
+			SurveyID:           record.SurveyID,
+			SessionID:          record.SessionID,
+			ClientMetadataJSON: record.ClientMetadataJSON,
+			Status:             record.Status,
+			ResponsesCount:     record.ResponsesCount,
+			StartedAt:          record.StartedAt.Format(time.RFC3339),
+			CompletedAt:        completedAt,
+		})
+	}
+
+	return &servicedto.ListSurveySessionsOutput{Sessions: sessions}
 }

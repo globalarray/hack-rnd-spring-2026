@@ -641,13 +641,9 @@ export const api = {
       return mockBackend.listSurveySessions(`Bearer ${accessToken}`, surveyId);
     }
 
-    try {
-      return await request<SessionRecord[]>(`/api/v1/surveys/${surveyId}/sessions`, {
-        accessToken
-      });
-    } catch {
-      return [];
-    }
+    return request<SessionRecord[]>(`/api/v1/surveys/${surveyId}/sessions`, {
+      accessToken
+    });
   },
 
   async startSession(input: StartSessionInput): Promise<StartSessionResult> {
