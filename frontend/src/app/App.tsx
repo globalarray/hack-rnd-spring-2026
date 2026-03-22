@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
 
 import { LoadingScreen } from "../components/ui";
+import { PUBLIC_APP_URL } from "../lib/app-config";
 import { AdminDashboard } from "../pages/AdminDashboard";
 import { CandidateFlowPage } from "../pages/CandidateFlowPage";
 import { HomePage } from "../pages/HomePage";
@@ -57,6 +58,19 @@ function GuestOnlyRoute() {
 }
 
 export function App() {
+  if (typeof window !== "undefined") {
+    try {
+      const canonical = new URL(PUBLIC_APP_URL);
+      const current = new URL(window.location.href);
+      if (current.host !== canonical.host || current.protocol !== canonical.protocol) {
+        window.location.replace(`${canonical.origin}${current.pathname}${current.search}${current.hash}`);
+        return <LoadingScreen title="Перенаправляем на основной домен" description="Открываем приложение на hack.benzo.cloud:3000." />;
+      }
+    } catch {
+      // noop: keep the app available even if the configured URL is malformed
+    }
+  }
+
   return (
     <AuthProvider>
       <BrowserRouter>

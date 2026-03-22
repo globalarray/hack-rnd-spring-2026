@@ -21,6 +21,7 @@ import {
   type SurveySummary,
   type UserProfile
 } from "./types";
+import { PUBLIC_APP_URL } from "./app-config";
 import { buildQuestionTemplate, buildDefaultSettings, createId, encodeSetup, ensureQuestionOrder, safeParseJson } from "./utils";
 
 type MockUser = UserProfile & {
@@ -60,17 +61,7 @@ function clone<T>(value: T): T {
 }
 
 function getOrigin() {
-  const configured = (import.meta.env.VITE_PUBLIC_APP_URL as string | undefined) ?? "https://hack.benzo.cloud";
-
-  if (typeof window === "undefined") {
-    return configured;
-  }
-
-  try {
-    return new URL(configured, window.location.origin).toString().replace(/\/$/, "");
-  } catch {
-    return configured;
-  }
+  return PUBLIC_APP_URL;
 }
 
 function buildTokens(user: UserProfile): AuthTokens {

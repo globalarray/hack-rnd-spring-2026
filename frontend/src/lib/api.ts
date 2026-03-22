@@ -1,4 +1,5 @@
 import { mockBackend } from "./mock-backend";
+import { API_BASE_URL, PUBLIC_APP_URL } from "./app-config";
 import type {
   ApiMode,
   AuthTokens,
@@ -30,51 +31,10 @@ type WorkspaceState = {
   draftSurveys: Record<string, SurveyRecord>;
   annulledSurveyIds: string[];
 };
-
-function resolveApiBaseUrl() {
-  const configured = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:8080";
-
-  if (typeof window === "undefined") {
-    return configured;
-  }
-
-  try {
-    const url = new URL(configured, window.location.origin);
-    const browserHost = window.location.hostname;
-    const isConfiguredLoopback = ["localhost", "127.0.0.1", "0.0.0.0"].includes(url.hostname);
-    const isBrowserLoopback = ["localhost", "127.0.0.1", "0.0.0.0"].includes(browserHost);
-
-    if (isConfiguredLoopback && !isBrowserLoopback) {
-      url.hostname = browserHost;
-    }
-
-    return url.toString().replace(/\/$/, "");
-  } catch {
-    return configured;
-  }
-}
-
-function resolvePublicAppUrl() {
-  const configured = (import.meta.env.VITE_PUBLIC_APP_URL as string | undefined) ?? "https://hack.benzo.cloud";
-
-  if (typeof window === "undefined") {
-    return configured;
-  }
-
-  try {
-    return new URL(configured, window.location.origin).toString().replace(/\/$/, "");
-  } catch {
-    return configured;
-  }
-}
-
-const API_BASE_URL = resolveApiBaseUrl();
-const PUBLIC_APP_URL = resolvePublicAppUrl();
 const API_MODE = ((import.meta.env.VITE_API_MODE as ApiMode | undefined) ?? "mock") as ApiMode;
 const WORKSPACE_KEY = "profdnk.workspace.v1";
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const LOCAL_DATE_TIME_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
-const LOOPBACK_HOSTNAMES = ["localhost", "127.0.0.1", "0.0.0.0"];
 
 function parseLocalDateTime(value: string) {
   if (!LOCAL_DATE_TIME_PATTERN.test(value)) {
@@ -99,11 +59,8 @@ function normalizePublicUrl(value?: string) {
   try {
     const resolved = new URL(value, PUBLIC_APP_URL);
     const publicBase = new URL(PUBLIC_APP_URL);
-
-    if (LOOPBACK_HOSTNAMES.includes(resolved.hostname)) {
-      resolved.protocol = publicBase.protocol;
-      resolved.host = publicBase.host;
-    }
+    resolved.protocol = publicBase.protocol;
+    resolved.host = publicBase.host;
 
     return resolved.toString();
   } catch {

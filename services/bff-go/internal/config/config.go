@@ -41,7 +41,7 @@ func Load() (Config, error) {
 		HTTPPort:                  getEnv("PORT", "8080"),
 		LogLevel:                  strings.ToLower(getEnv("LOG_LEVEL", "info")),
 		DefaultClientReportFormat: getEnv("DEFAULT_CLIENT_REPORT_FORMAT", "client_docx"),
-		PublicBaseURL:             getEnv("PUBLIC_BASE_URL", "https://hack.benzo.cloud"),
+		PublicBaseURL:             getEnv("PUBLIC_BASE_URL", "http://hack.benzo.cloud:3000"),
 		Engine: GRPCClientConfig{
 			Address:        getEnv("ENGINE_ADDR", "test-engine:50036"),
 			Insecure:       getEnvBool("ENGINE_INSECURE", false),

@@ -18,17 +18,46 @@ type AuthUseCase struct {
 	publicBaseURL string
 }
 
+const canonicalPublicBaseURL = "http://hack.benzo.cloud:3000"
+
 func NewAuthUseCase(auth ports.AuthGateway, publicBaseURL string) *AuthUseCase {
 	return &AuthUseCase{
 		auth:          auth,
-		publicBaseURL: strings.TrimRight(strings.TrimSpace(publicBaseURL), "/"),
+		publicBaseURL: normalizePublicBaseURL(publicBaseURL),
 	}
+}
+
+func normalizePublicBaseURL(value string) string {
+	value = strings.TrimRight(strings.TrimSpace(value), "/")
+	if value == "" {
+		return canonicalPublicBaseURL
+	}
+
+	configured, err := url.Parse(value)
+	if err != nil {
+		return canonicalPublicBaseURL
+	}
+
+	canonical, err := url.Parse(canonicalPublicBaseURL)
+	if err != nil {
+		return canonicalPublicBaseURL
+	}
+
+	configured.Scheme = canonical.Scheme
+	configured.Host = canonical.Host
+	configured.Opaque = ""
+	configured.Path = ""
+	configured.RawPath = ""
+	configured.RawQuery = ""
+	configured.Fragment = ""
+
+	return strings.TrimRight(configured.String(), "/")
 }
 
 func (uc *AuthUseCase) buildInvitationURL(token string) string {
 	baseURL := uc.publicBaseURL
 	if baseURL == "" {
-		baseURL = "https://hack.benzo.cloud"
+		baseURL = canonicalPublicBaseURL
 	}
 
 	invitationURL, err := url.JoinPath(baseURL, "invitations", token)

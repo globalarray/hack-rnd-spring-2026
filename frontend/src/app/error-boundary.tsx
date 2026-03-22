@@ -2,6 +2,7 @@ import { Component, type ErrorInfo, type ReactNode } from "react";
 
 import { BrandHomeLink } from "../components/brand";
 import { Button, Card, GhostButton } from "../components/ui";
+import { PUBLIC_APP_URL } from "../lib/app-config";
 
 type AppErrorBoundaryProps = {
   children: ReactNode;
@@ -45,7 +46,7 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
   handleResetStorage = () => {
     if (typeof window !== "undefined") {
       APP_STORAGE_KEYS.forEach((key) => window.localStorage.removeItem(key));
-      window.location.assign("/");
+      window.location.assign(PUBLIC_APP_URL);
     }
   };
 

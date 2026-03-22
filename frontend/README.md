@@ -11,7 +11,7 @@
 
 ```bash
 VITE_API_MODE=mock
-VITE_API_BASE_URL=http://localhost:8080
+VITE_API_BASE_URL=http://hack.benzo.cloud:8080
 ```
 
 ## Скрипты
