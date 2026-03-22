@@ -1,3 +1,0 @@
-email_service:
-  email_key: "RANDOM_KEY"
-  account_validation_template_id: "template_id"
