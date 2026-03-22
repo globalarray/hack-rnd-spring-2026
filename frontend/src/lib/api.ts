@@ -257,10 +257,7 @@ function mapSurveyToPayload(draft: SurveyDraft) {
       orderNum: question.orderNum,
       type: question.type,
       text: question.text,
-      logicRules: {
-        rules: question.logicRules,
-        helperText: question.helperText
-      },
+      logicRules: mapQuestionLogicRules(question),
       answers: question.answers.map((answer) => ({
         id: answer.id,
         text: answer.text,
@@ -268,6 +265,25 @@ function mapSurveyToPayload(draft: SurveyDraft) {
         categoryTag: answer.categoryTag
       }))
     }))
+  };
+}
+
+function mapQuestionLogicRules(question: QuestionDraft) {
+  return {
+    rules: Object.fromEntries(
+      question.logicRules.flatMap((rule) => {
+        if (rule.action === "jump" && rule.nextQuestionId) {
+          return [[rule.answerId, { action: "JMP", next: rule.nextQuestionId }]];
+        }
+
+        if (rule.action === "finish") {
+          return [[rule.answerId, { action: "FINISH" }]];
+        }
+
+        return [];
+      })
+    ),
+    default_next: "linear"
   };
 }
 

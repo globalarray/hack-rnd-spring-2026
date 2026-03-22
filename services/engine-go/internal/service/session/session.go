@@ -102,7 +102,12 @@ func (s *service) resolveNextStep(
 		case question.ActionFinish:
 			return "", true
 		case question.ActionJump:
-			return rule.(*question.JumpRule).NextQuestionID, false
+			switch jumpRule := rule.(type) {
+			case question.JumpRule:
+				return jumpRule.NextQuestionID, false
+			case *question.JumpRule:
+				return jumpRule.NextQuestionID, false
+			}
 		}
 	}
 
