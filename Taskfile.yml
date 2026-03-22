@@ -6,18 +6,33 @@ vars:
   PYTHON_PROTO_VENV: '{{.TASKFILE_DIR}}/.tools/python-proto-venv'
 
 tasks:
+  check-certs:
+    desc: "Проверяет наличие сертификатов для mTLS"
+    cmds:
+      - |
+        set -eu
+        for file in certs/ca.crt certs/server.crt certs/server.key certs/client.crt certs/client.key; do
+          if [ ! -f "$file" ]; then
+            echo "Missing certificate file: $file"
+            echo "Run: task gen-certs OUTPUT=certs"
+            exit 1
+          fi
+        done
   up:
     desc: "Запуск сервиса с подгрузкой нужного .env"
+    deps: [check-certs]
     cmds:
       - docker compose --env-file services/engine-go/.env up -d
   rebuild:
     desc: "Пересборка и запуск"
+    deps: [check-certs]
     cmds:
       # Мы добавляем --build, чтобы Docker проверил изменения
       - docker compose --env-file services/engine-go/.env up -d --build
     silent: true
   hard-rebuild:
     desc: "Полная пересборка с нуля"
+    deps: [check-certs]
     cmds:
       - docker compose build --no-cache
       - task: up
