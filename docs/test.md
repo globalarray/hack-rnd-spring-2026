@@ -57,13 +57,13 @@ CREATE_RESP=$(curl -s -X POST "$BASE_URL/api/v1/surveys" \
       },
       "answers": [
         {
-          "id": "'"$ANSWER_1_UUID"'",
+          "id": "$ANSWER_1_UUID",
           "text": "Общение с людьми",
           "weight": 1,
           "categoryTag": "people"
         },
         {
-          "id": "'"$ANSWER_2_UUID"'",
+          "id": "$ANSWER_2_UUID",
           "text": "Работа с данными",
           "weight": 2,
           "categoryTag": "analysis"
@@ -80,13 +80,13 @@ CREATE_RESP=$(curl -s -X POST "$BASE_URL/api/v1/surveys" \
       },
       "answers": [
         {
-          "id": "'"$ANSWER_3_UUID"'",
+          "id": "$ANSWER_3_UUID",
           "text": "Анализировать информацию",
           "weight": 3,
           "categoryTag": "analysis"
         },
         {
-          "id": "'"$ANSWER_4_UUID"'",
+          "id": "$ANSWER_4_UUID",
           "text": "Координировать процессы",
           "weight": 2,
           "categoryTag": "management"
