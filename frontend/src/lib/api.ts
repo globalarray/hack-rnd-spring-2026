@@ -31,7 +31,30 @@ type WorkspaceState = {
   annulledSurveyIds: string[];
 };
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:8080";
+function resolveApiBaseUrl() {
+  const configured = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:8080";
+
+  if (typeof window === "undefined") {
+    return configured;
+  }
+
+  try {
+    const url = new URL(configured, window.location.origin);
+    const browserHost = window.location.hostname;
+    const isConfiguredLoopback = ["localhost", "127.0.0.1", "0.0.0.0"].includes(url.hostname);
+    const isBrowserLoopback = ["localhost", "127.0.0.1", "0.0.0.0"].includes(browserHost);
+
+    if (isConfiguredLoopback && !isBrowserLoopback) {
+      url.hostname = browserHost;
+    }
+
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return configured;
+  }
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 const API_MODE = ((import.meta.env.VITE_API_MODE as ApiMode | undefined) ?? "mock") as ApiMode;
 const WORKSPACE_KEY = "profdnk.workspace.v1";
 
@@ -144,10 +167,19 @@ async function request<T>(path: string, init?: RequestInit & { accessToken?: str
     headers.set("Authorization", `Bearer ${init.accessToken}`);
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      headers
+    });
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new Error(`Не удалось подключиться к BFF по адресу ${API_BASE_URL}. Проверьте, что сервис запущен и доступен из браузера.`);
+    }
+
+    throw error;
+  }
 
   return parseResponse<T>(response);
 }

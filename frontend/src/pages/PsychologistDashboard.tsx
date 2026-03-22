@@ -491,7 +491,7 @@ export function PsychologistDashboard() {
           <Card className="stack">
             <SectionTitle
               title="Готовые ссылки"
-              description="Каждая ссылка открывает public flow на `site_url/tests/{surveyId}/start` с собственным набором metadata."
+              description={"Каждая ссылка открывает public flow на site_url/tests/{surveyId}/start с собственным набором metadata."}
             />
 
             {!activeSurvey || activeSurvey.shareLinks.length === 0 ? (

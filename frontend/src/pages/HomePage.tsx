@@ -41,7 +41,7 @@ export function HomePage() {
           <strong>Что умеет продукт</strong>
           <ul>
             <li>Единый вход для администратора и психолога.</li>
-            <li>Invitation-based onboarding для психологов через `/invitations/{uuid}`.</li>
+            <li>{"Invitation-based onboarding для психологов через /invitations/{uuid}."}</li>
             <li>Drag-and-drop конструктор тестов с логикой переходов между вопросами.</li>
             <li>Публичные ссылки на прохождение с настраиваемой metadata перед стартом.</li>
             <li>Email-отчеты для клиента и отдельный отчет для психолога.</li>
