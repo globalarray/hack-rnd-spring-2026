@@ -17,7 +17,7 @@ import {
 } from "../components/ui";
 import { api } from "../lib/api";
 import type { DirectoryItem } from "../lib/types";
-import { formatDate, readErrorMessage } from "../lib/utils";
+import { copyText, formatDate, readErrorMessage } from "../lib/utils";
 
 type AdminTab = "directory" | "profile";
 
@@ -136,8 +136,15 @@ export function AdminDashboard() {
   }
 
   async function handleCopyLink(value: string) {
-    await navigator.clipboard.writeText(value);
-    setFeedback("Ссылка скопирована в буфер обмена.");
+    setFeedback("");
+    setError("");
+
+    try {
+      await copyText(value);
+      setFeedback("Ссылка скопирована в буфер обмена.");
+    } catch (copyError) {
+      setError(readErrorMessage(copyError));
+    }
   }
 
   async function handleProfileSubmit(event: FormEvent<HTMLFormElement>) {

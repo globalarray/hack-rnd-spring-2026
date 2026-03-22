@@ -60,11 +60,17 @@ function clone<T>(value: T): T {
 }
 
 function getOrigin() {
+  const configured = (import.meta.env.VITE_PUBLIC_APP_URL as string | undefined) ?? "https://hack.benzo.cloud";
+
   if (typeof window === "undefined") {
-    return "http://localhost:3000";
+    return configured;
   }
 
-  return window.location.origin;
+  try {
+    return new URL(configured, window.location.origin).toString().replace(/\/$/, "");
+  } catch {
+    return configured;
+  }
 }
 
 function buildTokens(user: UserProfile): AuthTokens {

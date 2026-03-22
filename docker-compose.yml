@@ -104,7 +104,7 @@ services:
         condition: service_started
     environment:
       PORT: 8080
-      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://hack.benzo.cloud}
       ENGINE_ADDR: test-engine:50036
       ENGINE_INSECURE: "false"
       ENGINE_CA_CERT_PATH: /etc/certs/ca.crt

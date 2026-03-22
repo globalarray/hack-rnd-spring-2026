@@ -54,7 +54,22 @@ function resolveApiBaseUrl() {
   }
 }
 
+function resolvePublicAppUrl() {
+  const configured = (import.meta.env.VITE_PUBLIC_APP_URL as string | undefined) ?? "https://hack.benzo.cloud";
+
+  if (typeof window === "undefined") {
+    return configured;
+  }
+
+  try {
+    return new URL(configured, window.location.origin).toString().replace(/\/$/, "");
+  } catch {
+    return configured;
+  }
+}
+
 const API_BASE_URL = resolveApiBaseUrl();
+const PUBLIC_APP_URL = resolvePublicAppUrl();
 const API_MODE = ((import.meta.env.VITE_API_MODE as ApiMode | undefined) ?? "mock") as ApiMode;
 const WORKSPACE_KEY = "profdnk.workspace.v1";
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -302,7 +317,7 @@ function buildLocalShareLink(surveyId: string, survey: SurveyRecord, draft: Shar
     ownerId: link.ownerId,
     fields: link.extraFields
   });
-  link.publicUrl = `${window.location.origin}/tests/${surveyId}/start?setup=${encodeURIComponent(setup)}`;
+  link.publicUrl = `${PUBLIC_APP_URL}/tests/${surveyId}/start?setup=${encodeURIComponent(setup)}`;
   return link;
 }
 

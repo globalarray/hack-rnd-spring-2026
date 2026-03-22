@@ -28,7 +28,7 @@ import type {
   SurveyRecord,
   SurveySummary
 } from "../lib/types";
-import { buildDefaultSettings, buildQuestionTemplate, formatDate, formatDateTime, readErrorMessage } from "../lib/utils";
+import { buildDefaultSettings, buildQuestionTemplate, copyText, formatDate, formatDateTime, readErrorMessage } from "../lib/utils";
 
 type PsychologistTab = "tests" | "constructor" | "links" | "results" | "profile";
 
@@ -262,8 +262,15 @@ export function PsychologistDashboard() {
   }
 
   async function handleCopy(value: string) {
-    await navigator.clipboard.writeText(value);
-    setFeedback("Ссылка скопирована.");
+    setFeedback("");
+    setError("");
+
+    try {
+      await copyText(value);
+      setFeedback("Ссылка скопирована.");
+    } catch (copyError) {
+      setError(readErrorMessage(copyError));
+    }
   }
 
   async function handleSendClientReport(sessionId: string) {

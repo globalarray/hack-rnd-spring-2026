@@ -142,7 +142,7 @@ func (uc *AuthUseCase) CreateInvitation(ctx context.Context, authorization strin
 
 	baseURL := uc.publicBaseURL
 	if baseURL == "" {
-		baseURL = "http://localhost:3000"
+		baseURL = "https://hack.benzo.cloud"
 	}
 
 	invitationURL, err := url.JoinPath(baseURL, "invitations", token)
