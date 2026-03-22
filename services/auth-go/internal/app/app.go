@@ -14,6 +14,7 @@ import (
 	"sourcecraft.dev/benzo/hack-rnd-2026-spring/services/auth-go/internal/secure"
 	"sourcecraft.dev/benzo/hack-rnd-2026-spring/services/auth-go/internal/server"
 	"sourcecraft.dev/benzo/hack-rnd-2026-spring/services/auth-go/internal/server/interceptors"
+	"sourcecraft.dev/benzo/hack-rnd-2026-spring/services/auth-go/internal/service"
 	"sourcecraft.dev/benzo/hack-rnd-2026-spring/services/auth-go/internal/storage/postgres"
 )
 
@@ -45,7 +46,7 @@ func New(repo *postgres.Storage, logger *slog.Logger, cfg config.Config) (*App, 
 func (a *App) Run() error {
 	a.logger.Info("starting auth gRPC server", slog.String("port", a.cfg.Port))
 
-	authServer := server.New(a.repo)
+	authServer := server.New(service.NewAuthService(a.repo))
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
 			interceptors.RecoveryInterceptor(a.logger),

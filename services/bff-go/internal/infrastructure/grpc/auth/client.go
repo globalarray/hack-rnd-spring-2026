@@ -64,6 +64,48 @@ func (c *Client) GetProfile(ctx context.Context, authorization string) (*domain.
 	return mapProfile(resp)
 }
 
+func (c *Client) ListPsychologists(ctx context.Context, authorization string) ([]domain.DirectoryItem, error) {
+	resp, err := c.client.ListPsychologists(withAuthorization(ctx, authorization), &emptypb.Empty{})
+	if err != nil {
+		return nil, err
+	}
+
+	items := resp.GetItems()
+	directory := make([]domain.DirectoryItem, 0, len(items))
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+
+		entry := domain.DirectoryItem{
+			ID:              strings.TrimSpace(item.GetId()),
+			Email:           strings.TrimSpace(item.GetEmail()),
+			FullName:        item.GetFullName(),
+			Phone:           item.GetPhone(),
+			Role:            item.GetRole(),
+			Status:          item.GetStatus(),
+			InvitationToken: strings.TrimSpace(item.GetInvitationToken()),
+		}
+
+		if entry.ID != "" {
+			if _, err := uuid.Parse(entry.ID); err != nil {
+				return nil, fmt.Errorf("%w: auth directory id is invalid", domain.ErrUpstreamResponse)
+			}
+		}
+
+		if accessUntil := item.GetAccessUntil(); accessUntil != nil {
+			entry.AccessUntil = accessUntil.AsTime()
+		}
+		if expiresAt := item.GetExpiresAt(); expiresAt != nil {
+			entry.ExpiresAt = expiresAt.AsTime()
+		}
+
+		directory = append(directory, entry)
+	}
+
+	return directory, nil
+}
+
 func (c *Client) UpdateProfile(ctx context.Context, authorization string, input domain.ProfileUpdate) (*domain.UserProfile, error) {
 	resp, err := c.client.UpdateProfile(withAuthorization(ctx, authorization), &authpb.UpdateProfileRequest{
 		PhotoUrl: input.PhotoURL,

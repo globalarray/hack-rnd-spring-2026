@@ -69,6 +69,7 @@ func NewRouter(log *slog.Logger, surveys *usecase.SurveyUseCase, sessions *useca
 		r.Group(func(r chi.Router) {
 			r.Use(handler.requireAdminProfile)
 
+			r.Get("/auth/psychologists", handler.listPsychologists)
 			r.Patch("/auth/profile", handler.updateProfile)
 			r.Patch("/auth/users/{userId}/profile", handler.updateUserProfile)
 			r.Post("/auth/invitations", handler.createInvitation)
@@ -474,6 +475,21 @@ func (h *Handler) updateProfile(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, mapProfile(profile))
 }
 
+func (h *Handler) listPsychologists(w http.ResponseWriter, r *http.Request) {
+	items, err := h.auth.ListPsychologists(r.Context(), r.Header.Get("Authorization"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+
+	payload := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		payload = append(payload, mapDirectoryItem(item))
+	}
+
+	writeJSON(w, http.StatusOK, payload)
+}
+
 func (h *Handler) updateUserProfile(w http.ResponseWriter, r *http.Request) {
 	userID := chi.URLParam(r, "userId")
 
@@ -693,6 +709,34 @@ func mapProfile(profile *domain.UserProfile) map[string]any {
 
 	if !profile.AccessUntil.IsZero() {
 		payload["accessUntil"] = profile.AccessUntil.Format(time.RFC3339)
+	}
+
+	return payload
+}
+
+func mapDirectoryItem(item domain.DirectoryItem) map[string]any {
+	payload := map[string]any{
+		"fullName": item.FullName,
+		"phone":    item.Phone,
+		"email":    item.Email,
+		"role":     item.Role,
+		"status":   item.Status,
+	}
+
+	if item.ID != "" {
+		payload["id"] = item.ID
+	}
+	if !item.AccessUntil.IsZero() {
+		payload["accessUntil"] = item.AccessUntil.Format(time.RFC3339)
+	}
+	if !item.ExpiresAt.IsZero() {
+		payload["expiresAt"] = item.ExpiresAt.Format(time.RFC3339)
+	}
+	if item.InvitationToken != "" {
+		payload["invitationToken"] = item.InvitationToken
+	}
+	if item.InvitationURL != "" {
+		payload["invitationUrl"] = item.InvitationURL
 	}
 
 	return payload

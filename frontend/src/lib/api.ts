@@ -189,6 +189,15 @@ function upsertDirectoryItem(item: DirectoryItem) {
   writeWorkspace(workspace);
 }
 
+function replaceDirectory(items: DirectoryItem[]) {
+  const workspace = readWorkspace();
+  workspace.directory = items.map((item) => ({
+    ...item,
+    invitationUrl: normalizePublicUrl(item.invitationUrl)
+  }));
+  writeWorkspace(workspace);
+}
+
 function storeDraftSurvey(survey: SurveyRecord) {
   const workspace = readWorkspace();
   workspace.draftSurveys[survey.surveyId] = clone(survey);
@@ -443,7 +452,19 @@ export const api = {
       return mockBackend.listPsychologists(`Bearer ${accessToken}`);
     }
 
-    return readWorkspace().directory;
+    try {
+      const response = await request<DirectoryItem[]>("/api/v1/auth/psychologists", {
+        accessToken
+      });
+      const normalized = response.map((item) => ({
+        ...item,
+        invitationUrl: normalizePublicUrl(item.invitationUrl)
+      }));
+      replaceDirectory(normalized);
+      return normalized;
+    } catch {
+      return readWorkspace().directory;
+    }
   },
 
   async createInvitation(accessToken: string, draft: InvitationDraft): Promise<InvitationLink> {

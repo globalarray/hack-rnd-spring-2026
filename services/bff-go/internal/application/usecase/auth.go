@@ -25,6 +25,20 @@ func NewAuthUseCase(auth ports.AuthGateway, publicBaseURL string) *AuthUseCase {
 	}
 }
 
+func (uc *AuthUseCase) buildInvitationURL(token string) string {
+	baseURL := uc.publicBaseURL
+	if baseURL == "" {
+		baseURL = "https://hack.benzo.cloud"
+	}
+
+	invitationURL, err := url.JoinPath(baseURL, "invitations", token)
+	if err != nil {
+		return baseURL + "/invitations/" + token
+	}
+
+	return invitationURL
+}
+
 func (uc *AuthUseCase) Login(ctx context.Context, email, password string) (*domain.AuthTokens, error) {
 	if err := validateEmail(email); err != nil {
 		return nil, err
@@ -61,6 +75,25 @@ func (uc *AuthUseCase) GetProfile(ctx context.Context, authorization string) (*d
 	}
 
 	return uc.auth.GetProfile(ctx, authorization)
+}
+
+func (uc *AuthUseCase) ListPsychologists(ctx context.Context, authorization string) ([]domain.DirectoryItem, error) {
+	if err := validateAuthorizationHeader(authorization); err != nil {
+		return nil, err
+	}
+
+	items, err := uc.auth.ListPsychologists(ctx, authorization)
+	if err != nil {
+		return nil, err
+	}
+
+	for index := range items {
+		if strings.TrimSpace(items[index].InvitationToken) != "" {
+			items[index].InvitationURL = uc.buildInvitationURL(items[index].InvitationToken)
+		}
+	}
+
+	return items, nil
 }
 
 func (uc *AuthUseCase) Authenticate(ctx context.Context, authorization string) (*domain.UserProfile, error) {
@@ -140,19 +173,9 @@ func (uc *AuthUseCase) CreateInvitation(ctx context.Context, authorization strin
 		return nil, err
 	}
 
-	baseURL := uc.publicBaseURL
-	if baseURL == "" {
-		baseURL = "https://hack.benzo.cloud"
-	}
-
-	invitationURL, err := url.JoinPath(baseURL, "invitations", token)
-	if err != nil {
-		invitationURL = baseURL + "/invitations/" + token
-	}
-
 	return &domain.InvitationLink{
 		Token: token,
-		URL:   invitationURL,
+		URL:   uc.buildInvitationURL(token),
 	}, nil
 }
 

@@ -20,6 +20,7 @@ type AuthGateway interface {
 	RefreshToken(ctx context.Context, refreshToken string) (*domain.AuthTokens, error)
 	Register(ctx context.Context, token, password string) (*domain.AuthTokens, error)
 	GetProfile(ctx context.Context, authorization string) (*domain.UserProfile, error)
+	ListPsychologists(ctx context.Context, authorization string) ([]domain.DirectoryItem, error)
 	UpdateProfile(ctx context.Context, authorization string, input domain.ProfileUpdate) (*domain.UserProfile, error)
 	UpdateUserProfile(ctx context.Context, authorization, userID string, input domain.ProfileUpdate) (*domain.UserProfile, error)
 	GetPublicProfile(ctx context.Context, userID string) (*domain.PublicProfile, error)

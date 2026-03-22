@@ -9,6 +9,7 @@ option go_package= "./gen/go;auth";
 
 service AuthService {
     rpc GetProfile(google.protobuf.Empty) returns (ProfileResponse);
+    rpc ListPsychologists(google.protobuf.Empty) returns (ListPsychologistsResponse);
     rpc UpdateProfile(UpdateProfileRequest) returns (ProfileResponse);
     rpc UpdateUserProfile(UpdateUserProfileRequest) returns (ProfileResponse);
     rpc GetPublicProfile(PublicProfileRequest) returns (PublicProfileResponse);
@@ -30,6 +31,22 @@ message ProfileResponse {
     string about = 7;
     string status = 8;
     google.protobuf.Timestamp access_until = 9;
+}
+
+message DirectoryEntry {
+    string id = 1;
+    string email = 2;
+    string full_name = 3;
+    string phone = 4;
+    string role = 5;
+    string status = 6;
+    google.protobuf.Timestamp access_until = 7;
+    google.protobuf.Timestamp expires_at = 8;
+    string invitation_token = 9;
+}
+
+message ListPsychologistsResponse {
+    repeated DirectoryEntry items = 1;
 }
 
 message UnBlockUserRequest{

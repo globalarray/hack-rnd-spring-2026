@@ -21,6 +21,19 @@ type UserProfile struct {
 	AccessUntil time.Time
 }
 
+type DirectoryItem struct {
+	ID              string
+	Email           string
+	FullName        string
+	Phone           string
+	Role            string
+	Status          string
+	AccessUntil     time.Time
+	ExpiresAt       time.Time
+	InvitationToken string
+	InvitationURL   string
+}
+
 type ProfileUpdate struct {
 	PhotoURL string
 	About    string

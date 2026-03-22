@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"log/slog"
 	"strings"
 	"time"
 
@@ -19,49 +18,11 @@ import (
 
 type AuthServer struct {
 	auth.UnimplementedAuthServiceServer
-	repo *postgres.Storage
+	authService *service.AuthService
 }
 
-func New(repo *postgres.Storage) *AuthServer {
-	return &AuthServer{repo: repo}
-}
-
-func (s *AuthServer) authorize(ctx context.Context, requireAdmin bool) (*postgres.AuthState, error) {
-	token, err := service.ExtractToken(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	claims, err := service.ValidateAccessToken(token)
-	if err != nil {
-		return nil, status.Error(codes.Unauthenticated, "invalid token")
-	}
-
-	userID, ok := claims["user_id"].(string)
-	if !ok || strings.TrimSpace(userID) == "" {
-		return nil, status.Error(codes.Unauthenticated, "invalid token payload")
-	}
-
-	authState, err := s.repo.GetUserAuthStateByID(ctx, userID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, status.Error(codes.Unauthenticated, "user not found")
-		}
-		return nil, status.Error(codes.Internal, "internal server error")
-	}
-
-	switch authState.Status {
-	case postgres.StatusBlocked:
-		return nil, status.Error(codes.PermissionDenied, "account is blocked")
-	case postgres.StatusInactive:
-		return nil, status.Error(codes.PermissionDenied, "account is inactive")
-	}
-
-	if requireAdmin && authState.Role != postgres.RoleAdmin {
-		return nil, status.Error(codes.PermissionDenied, "admin role is required")
-	}
-
-	return authState, nil
+func New(authService *service.AuthService) *AuthServer {
+	return &AuthServer{authService: authService}
 }
 
 func mapUserToProfileResponse(user *postgres.User) *auth.ProfileResponse {
@@ -82,8 +43,49 @@ func mapUserToProfileResponse(user *postgres.User) *auth.ProfileResponse {
 	}
 }
 
+func mapDirectoryEntryToResponse(item postgres.DirectoryEntry) *auth.DirectoryEntry {
+	response := &auth.DirectoryEntry{
+		Id:              item.ID,
+		Email:           item.Email,
+		FullName:        item.FullName,
+		Phone:           item.Phone,
+		Role:            item.Role,
+		Status:          item.Status,
+		InvitationToken: item.InvitationToken,
+	}
+
+	if !item.AccessUntil.IsZero() {
+		response.AccessUntil = timestamppb.New(item.AccessUntil)
+	}
+	if !item.ExpiresAt.IsZero() {
+		response.ExpiresAt = timestamppb.New(item.ExpiresAt)
+	}
+
+	return response
+}
+
+func (s *AuthServer) ListPsychologists(ctx context.Context, _ *emptypb.Empty) (*auth.ListPsychologistsResponse, error) {
+	if _, err := s.authService.Authorize(ctx, true); err != nil {
+		return nil, err
+	}
+
+	items, err := s.authService.ListPsychologists(ctx)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to list psychologists")
+	}
+
+	response := &auth.ListPsychologistsResponse{
+		Items: make([]*auth.DirectoryEntry, 0, len(items)),
+	}
+	for _, item := range items {
+		response.Items = append(response.Items, mapDirectoryEntryToResponse(item))
+	}
+
+	return response, nil
+}
+
 func (s *AuthServer) CreateInvitation(ctx context.Context, in *auth.CreateInvitationRequest) (*auth.InvitationResponse, error) {
-	if _, err := s.authorize(ctx, true); err != nil {
+	if _, err := s.authService.Authorize(ctx, true); err != nil {
 		return nil, err
 	}
 
@@ -106,18 +108,11 @@ func (s *AuthServer) CreateInvitation(ctx context.Context, in *auth.CreateInvita
 		return nil, status.Error(codes.InvalidArgument, "expires_at must be in the future")
 	}
 
-	exists, err := s.repo.UserExistsByEmail(ctx, email)
-	if err != nil {
-		s.repo.Logger.Error("check invitation user existence failed", slog.Any("error", err), slog.String("email", email))
-		return nil, status.Error(codes.Internal, "failed to create invitation")
-	}
-	if exists {
+	token, err := s.authService.CreateInvitation(ctx, email, role, fullName, phone, accessUntil, expiresAt)
+	if errors.Is(err, service.ErrUserAlreadyExists) {
 		return nil, status.Error(codes.AlreadyExists, "user with this email already exists")
 	}
-
-	token, err := s.repo.CreateInvitationUUID(ctx, email, role, fullName, phone, accessUntil, expiresAt)
 	if err != nil {
-		s.repo.Logger.Error("create invitation failed", slog.Any("error", err), slog.String("email", email))
 		return nil, status.Error(codes.Internal, "failed to create invitation")
 	}
 
@@ -132,8 +127,8 @@ func (s *AuthServer) Register(ctx context.Context, in *auth.RegisterRequest) (*a
 		return nil, status.Error(codes.InvalidArgument, "token and password are required")
 	}
 
-	ok, err := service.IsAccessToken(ctx, s.repo, token)
-	if !ok {
+	tokens, role, err := s.authService.Register(ctx, token, password)
+	if err != nil {
 		switch err.Error() {
 		case service.ErrAlreadyUsed:
 			return nil, status.Error(codes.AlreadyExists, service.ErrAlreadyUsed)
@@ -142,34 +137,11 @@ func (s *AuthServer) Register(ctx context.Context, in *auth.RegisterRequest) (*a
 		case service.ErrTokenNotExists:
 			return nil, status.Error(codes.NotFound, service.ErrTokenNotExists)
 		default:
-			return nil, status.Error(codes.InvalidArgument, "invalid invitation token")
+			if errors.Is(err, sql.ErrTxDone) {
+				return nil, status.Error(codes.Internal, "failed to commit transaction")
+			}
+			return nil, status.Error(codes.Internal, "failed to register user")
 		}
-	}
-
-	passwordHash, err := service.HashPass(password)
-	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, "invalid password")
-	}
-
-	tx, err := s.repo.DB.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to start transaction")
-	}
-	defer tx.Rollback()
-
-	id, role, err := s.repo.RegisterByInvite(ctx, tx, token, passwordHash)
-	if err != nil {
-		s.repo.Logger.Error("register by invite failed", slog.Any("error", err))
-		return nil, status.Error(codes.Internal, "failed to register user")
-	}
-
-	tokens, err := service.GenerateTokensTx(ctx, tx, id, role, s.repo)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to generate tokens")
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, status.Error(codes.Internal, "failed to commit transaction")
 	}
 
 	return &auth.TokenResponse{
@@ -188,27 +160,17 @@ func (s *AuthServer) Login(ctx context.Context, in *auth.LoginRequest) (*auth.To
 		return nil, status.Error(codes.InvalidArgument, "email and password are required")
 	}
 
-	user, err := s.repo.GetUserByEmail(ctx, email)
+	tokens, role, err := s.authService.Login(ctx, email, password)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, service.ErrInvalidCredentials) {
 			return nil, status.Error(codes.InvalidArgument, "invalid email or password")
 		}
-		return nil, status.Error(codes.Internal, "internal server error")
-	}
-
-	switch user.Status {
-	case postgres.StatusBlocked:
-		return nil, status.Error(codes.PermissionDenied, "account is blocked")
-	case postgres.StatusInactive:
-		return nil, status.Error(codes.PermissionDenied, "account is inactive")
-	}
-
-	if ok := service.CompareHashPass(password, user.PasswordHash); !ok {
-		return nil, status.Error(codes.InvalidArgument, "invalid email or password")
-	}
-
-	tokens, err := service.GenerateTokens(ctx, user.ID, user.Role, s.repo)
-	if err != nil {
+		if errors.Is(err, service.ErrAccountBlocked) {
+			return nil, status.Error(codes.PermissionDenied, "account is blocked")
+		}
+		if errors.Is(err, service.ErrAccountInactive) {
+			return nil, status.Error(codes.PermissionDenied, "account is inactive")
+		}
 		return nil, status.Error(codes.Internal, "internal server error")
 	}
 
@@ -216,7 +178,7 @@ func (s *AuthServer) Login(ctx context.Context, in *auth.LoginRequest) (*auth.To
 		AccessToken:  tokens.AccessToken,
 		RefreshToken: tokens.RefreshToken,
 		ExpiresIn:    tokens.Expires_in,
-		Role:         user.Role,
+		Role:         role,
 	}, nil
 }
 
@@ -226,33 +188,17 @@ func (s *AuthServer) RefreshToken(ctx context.Context, in *auth.RefreshTokenRequ
 		return nil, status.Error(codes.InvalidArgument, "refresh_token is required")
 	}
 
-	claims, err := service.ValidateRefreshToken(refreshToken)
+	newTokens, role, err := s.authService.RefreshToken(ctx, refreshToken)
 	if err != nil {
-		return nil, status.Error(codes.Unauthenticated, "refresh token expired or invalid")
-	}
-
-	userID, ok := claims["user_id"].(string)
-	if !ok || strings.TrimSpace(userID) == "" {
-		return nil, status.Error(codes.Unauthenticated, "invalid token payload")
-	}
-
-	user, err := s.repo.GetUserByRefreshToken(ctx, userID, refreshToken)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, service.ErrInvalidSession) {
 			return nil, status.Error(codes.Unauthenticated, "invalid session")
 		}
-		return nil, status.Error(codes.Internal, "internal server error")
-	}
-
-	switch user.Status {
-	case postgres.StatusBlocked:
-		return nil, status.Error(codes.PermissionDenied, "account is blocked")
-	case postgres.StatusInactive:
-		return nil, status.Error(codes.PermissionDenied, "account is inactive")
-	}
-
-	newTokens, err := service.GenerateTokens(ctx, userID, user.Role, s.repo)
-	if err != nil {
+		if errors.Is(err, service.ErrAccountBlocked) {
+			return nil, status.Error(codes.PermissionDenied, "account is blocked")
+		}
+		if errors.Is(err, service.ErrAccountInactive) {
+			return nil, status.Error(codes.PermissionDenied, "account is inactive")
+		}
 		return nil, status.Error(codes.Internal, "failed to generate new tokens")
 	}
 
@@ -260,16 +206,16 @@ func (s *AuthServer) RefreshToken(ctx context.Context, in *auth.RefreshTokenRequ
 		AccessToken:  newTokens.AccessToken,
 		RefreshToken: newTokens.RefreshToken,
 		ExpiresIn:    newTokens.Expires_in,
-		Role:         user.Role,
+		Role:         role,
 	}, nil
 }
 
 func (s *AuthServer) BlockUser(ctx context.Context, in *auth.BlockUserRequest) (*emptypb.Empty, error) {
-	if _, err := s.authorize(ctx, true); err != nil {
+	if _, err := s.authService.Authorize(ctx, true); err != nil {
 		return nil, err
 	}
 
-	if err := s.repo.BlockUserByEmail(ctx, strings.TrimSpace(in.GetEmail())); err != nil {
+	if err := s.authService.BlockUser(ctx, strings.TrimSpace(in.GetEmail())); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, status.Error(codes.NotFound, "user not found")
 		}
@@ -280,11 +226,11 @@ func (s *AuthServer) BlockUser(ctx context.Context, in *auth.BlockUserRequest) (
 }
 
 func (s *AuthServer) UnBlockUser(ctx context.Context, in *auth.UnBlockUserRequest) (*emptypb.Empty, error) {
-	if _, err := s.authorize(ctx, true); err != nil {
+	if _, err := s.authService.Authorize(ctx, true); err != nil {
 		return nil, err
 	}
 
-	if err := s.repo.UnBlockUserByEmail(ctx, strings.TrimSpace(in.GetEmail())); err != nil {
+	if err := s.authService.UnblockUser(ctx, strings.TrimSpace(in.GetEmail())); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, status.Error(codes.NotFound, "user not found")
 		}
@@ -295,12 +241,12 @@ func (s *AuthServer) UnBlockUser(ctx context.Context, in *auth.UnBlockUserReques
 }
 
 func (s *AuthServer) GetProfile(ctx context.Context, _ *emptypb.Empty) (*auth.ProfileResponse, error) {
-	authState, err := s.authorize(ctx, false)
+	authState, err := s.authService.Authorize(ctx, false)
 	if err != nil {
 		return nil, err
 	}
 
-	user, err := s.repo.GetProfileByID(ctx, authState.ID)
+	user, err := s.authService.GetProfile(ctx, authState.ID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, status.Error(codes.NotFound, "profile not found")
@@ -312,19 +258,12 @@ func (s *AuthServer) GetProfile(ctx context.Context, _ *emptypb.Empty) (*auth.Pr
 }
 
 func (s *AuthServer) UpdateProfile(ctx context.Context, in *auth.UpdateProfileRequest) (*auth.ProfileResponse, error) {
-	authState, err := s.authorize(ctx, false)
+	authState, err := s.authService.Authorize(ctx, false)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := s.repo.UpdateProfileByID(ctx, authState.ID, in.GetAbout(), in.GetPhotoUrl()); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, status.Error(codes.NotFound, "profile not found")
-		}
-		return nil, status.Error(codes.Internal, "failed to update profile")
-	}
-
-	user, err := s.repo.GetProfileByID(ctx, authState.ID)
+	user, err := s.authService.UpdateProfile(ctx, authState.ID, in.GetAbout(), in.GetPhotoUrl())
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, status.Error(codes.NotFound, "profile not found")
@@ -336,7 +275,7 @@ func (s *AuthServer) UpdateProfile(ctx context.Context, in *auth.UpdateProfileRe
 }
 
 func (s *AuthServer) UpdateUserProfile(ctx context.Context, in *auth.UpdateUserProfileRequest) (*auth.ProfileResponse, error) {
-	if _, err := s.authorize(ctx, true); err != nil {
+	if _, err := s.authService.Authorize(ctx, true); err != nil {
 		return nil, err
 	}
 
@@ -345,14 +284,7 @@ func (s *AuthServer) UpdateUserProfile(ctx context.Context, in *auth.UpdateUserP
 		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
 
-	if err := s.repo.UpdateProfileByID(ctx, userID, in.GetAbout(), in.GetPhotoUrl()); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, status.Error(codes.NotFound, "profile not found")
-		}
-		return nil, status.Error(codes.Internal, "failed to update profile")
-	}
-
-	user, err := s.repo.GetProfileByID(ctx, userID)
+	user, err := s.authService.UpdateProfile(ctx, userID, in.GetAbout(), in.GetPhotoUrl())
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, status.Error(codes.NotFound, "profile not found")
@@ -369,7 +301,7 @@ func (s *AuthServer) GetPublicProfile(ctx context.Context, in *auth.PublicProfil
 		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
 
-	profile, err := s.repo.GetPublicProfileByID(ctx, userID)
+	profile, err := s.authService.GetPublicProfile(ctx, userID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, status.Error(codes.NotFound, "public profile not found")

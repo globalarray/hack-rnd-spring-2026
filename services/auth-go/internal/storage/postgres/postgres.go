@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -48,6 +49,18 @@ type PublicProfile struct {
 	FullName string
 	PhotoURL string
 	About    string
+}
+
+type DirectoryEntry struct {
+	ID              string
+	Email           string
+	FullName        string
+	Phone           string
+	Role            string
+	Status          string
+	AccessUntil     time.Time
+	ExpiresAt       time.Time
+	InvitationToken string
 }
 
 type AuthState struct {
@@ -511,4 +524,84 @@ func (s *Storage) GetPublicProfileByID(ctx context.Context, id string) (*PublicP
 	}
 
 	return row, nil
+}
+
+func (s *Storage) ListPsychologistDirectory(ctx context.Context) ([]DirectoryEntry, error) {
+	if err := s.syncExpiredUsers(ctx); err != nil {
+		return nil, err
+	}
+
+	items := make([]DirectoryEntry, 0)
+
+	userRows, err := s.DB.QueryContext(ctx, `
+		SELECT id, email, full_name, phone, role, status, access_until
+		FROM users
+		WHERE role = $1
+	`, RolePsychologist)
+	if err != nil {
+		return nil, err
+	}
+	defer userRows.Close()
+
+	for userRows.Next() {
+		var item DirectoryEntry
+		if err := userRows.Scan(
+			&item.ID,
+			&item.Email,
+			&item.FullName,
+			&item.Phone,
+			&item.Role,
+			&item.Status,
+			&item.AccessUntil,
+		); err != nil {
+			return nil, err
+		}
+
+		items = append(items, item)
+	}
+	if err := userRows.Err(); err != nil {
+		return nil, err
+	}
+
+	invitationRows, err := s.DB.QueryContext(ctx, `
+		SELECT email, full_name, phone, role, access_until, expires_at, token
+		FROM psychologist_invitations
+		WHERE is_used = FALSE
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer invitationRows.Close()
+
+	for invitationRows.Next() {
+		var item DirectoryEntry
+		if err := invitationRows.Scan(
+			&item.Email,
+			&item.FullName,
+			&item.Phone,
+			&item.Role,
+			&item.AccessUntil,
+			&item.ExpiresAt,
+			&item.InvitationToken,
+		); err != nil {
+			return nil, err
+		}
+
+		item.Status = "pending"
+		items = append(items, item)
+	}
+	if err := invitationRows.Err(); err != nil {
+		return nil, err
+	}
+
+	sort.SliceStable(items, func(i, j int) bool {
+		leftName := strings.ToLower(strings.TrimSpace(items[i].FullName))
+		rightName := strings.ToLower(strings.TrimSpace(items[j].FullName))
+		if leftName == rightName {
+			return strings.ToLower(strings.TrimSpace(items[i].Email)) < strings.ToLower(strings.TrimSpace(items[j].Email))
+		}
+		return leftName < rightName
+	})
+
+	return items, nil
 }

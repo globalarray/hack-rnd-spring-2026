@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	AuthService_GetProfile_FullMethodName        = "/auth.AuthService/GetProfile"
+	AuthService_ListPsychologists_FullMethodName = "/auth.AuthService/ListPsychologists"
 	AuthService_UpdateProfile_FullMethodName     = "/auth.AuthService/UpdateProfile"
 	AuthService_UpdateUserProfile_FullMethodName = "/auth.AuthService/UpdateUserProfile"
 	AuthService_GetPublicProfile_FullMethodName  = "/auth.AuthService/GetPublicProfile"
@@ -37,6 +38,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AuthServiceClient interface {
 	GetProfile(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ProfileResponse, error)
+	ListPsychologists(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ListPsychologistsResponse, error)
 	UpdateProfile(ctx context.Context, in *UpdateProfileRequest, opts ...grpc.CallOption) (*ProfileResponse, error)
 	UpdateUserProfile(ctx context.Context, in *UpdateUserProfileRequest, opts ...grpc.CallOption) (*ProfileResponse, error)
 	GetPublicProfile(ctx context.Context, in *PublicProfileRequest, opts ...grpc.CallOption) (*PublicProfileResponse, error)
@@ -60,6 +62,16 @@ func (c *authServiceClient) GetProfile(ctx context.Context, in *emptypb.Empty, o
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ProfileResponse)
 	err := c.cc.Invoke(ctx, AuthService_GetProfile_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListPsychologists(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ListPsychologistsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListPsychologistsResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListPsychologists_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -161,6 +173,7 @@ func (c *authServiceClient) RefreshToken(ctx context.Context, in *RefreshTokenRe
 // for forward compatibility.
 type AuthServiceServer interface {
 	GetProfile(context.Context, *emptypb.Empty) (*ProfileResponse, error)
+	ListPsychologists(context.Context, *emptypb.Empty) (*ListPsychologistsResponse, error)
 	UpdateProfile(context.Context, *UpdateProfileRequest) (*ProfileResponse, error)
 	UpdateUserProfile(context.Context, *UpdateUserProfileRequest) (*ProfileResponse, error)
 	GetPublicProfile(context.Context, *PublicProfileRequest) (*PublicProfileResponse, error)
@@ -182,6 +195,9 @@ type UnimplementedAuthServiceServer struct{}
 
 func (UnimplementedAuthServiceServer) GetProfile(context.Context, *emptypb.Empty) (*ProfileResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetProfile not implemented")
+}
+func (UnimplementedAuthServiceServer) ListPsychologists(context.Context, *emptypb.Empty) (*ListPsychologistsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListPsychologists not implemented")
 }
 func (UnimplementedAuthServiceServer) UpdateProfile(context.Context, *UpdateProfileRequest) (*ProfileResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateProfile not implemented")
@@ -245,6 +261,24 @@ func _AuthService_GetProfile_Handler(srv interface{}, ctx context.Context, dec f
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).GetProfile(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ListPsychologists_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListPsychologists(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListPsychologists_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListPsychologists(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -421,6 +455,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetProfile",
 			Handler:    _AuthService_GetProfile_Handler,
+		},
+		{
+			MethodName: "ListPsychologists",
+			Handler:    _AuthService_ListPsychologists_Handler,
 		},
 		{
 			MethodName: "UpdateProfile",
