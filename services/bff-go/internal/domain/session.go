@@ -143,3 +143,18 @@ func ParseReportFormat(value string) ReportFormat {
 		return ReportFormatClientDocx
 	}
 }
+
+func ValidateReportFormat(value string) (ReportFormat, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "client_docx", "docx":
+		return ReportFormatClientDocx, nil
+	case "client_html", "html":
+		return ReportFormatClientHTML, nil
+	case "psycho_docx":
+		return ReportFormatPsychoDocx, nil
+	case "psycho_html":
+		return ReportFormatPsychoHTML, nil
+	default:
+		return "", fmt.Errorf("%w: unsupported reportFormat %q", ErrInvalidInput, value)
+	}
+}

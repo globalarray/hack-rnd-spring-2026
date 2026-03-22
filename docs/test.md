@@ -129,9 +129,12 @@ curl -s -X PATCH "$BASE_URL/api/v1/auth/profile" \
 
 ## 8. Create Survey
 
+Приватная ручка, требуется `Authorization`.
+
 ```bash
 CREATE_RESP=$(curl -s -X POST "$BASE_URL/api/v1/surveys" \
   -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $ADMIN_ACCESS_TOKEN" \
   -d @- <<JSON
 {
   "psychologistId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
@@ -201,7 +204,9 @@ SURVEY_ID=$(echo "$CREATE_RESP" | jq -r '.surveyId')
 ## 9. List Surveys
 
 ```bash
-curl -s "$BASE_URL/api/v1/surveys?psychologistId=$PSYCHOLOGIST_ID" | jq
+curl -s "$BASE_URL/api/v1/surveys?psychologistId=$PSYCHOLOGIST_ID" \
+  -H "Authorization: Bearer $ADMIN_ACCESS_TOKEN" \
+  | jq
 ```
 
 ## 10. Start Session
@@ -323,7 +328,9 @@ echo "$FINISH_RESP" | jq
 ## 16. Get Session Analytics
 
 ```bash
-curl -s "$BASE_URL/api/v1/sessions/$SESSION_ID/analytics" | jq
+curl -s "$BASE_URL/api/v1/sessions/$SESSION_ID/analytics" \
+  -H "Authorization: Bearer $ADMIN_ACCESS_TOKEN" \
+  | jq
 ```
 
 ## 17. Send Report Manually
@@ -331,6 +338,7 @@ curl -s "$BASE_URL/api/v1/sessions/$SESSION_ID/analytics" | jq
 ```bash
 curl -s -X POST "$BASE_URL/api/v1/sessions/$SESSION_ID/report/send" \
   -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $ADMIN_ACCESS_TOKEN" \
   -d '{"reportFormat":"client_docx"}' \
   | jq
 ```

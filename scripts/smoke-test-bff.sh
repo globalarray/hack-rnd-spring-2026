@@ -4,6 +4,8 @@ set -euo pipefail
 
 BASE_URL="${BASE_URL:-http://localhost:8080}"
 PSYCHOLOGIST_ID="${PSYCHOLOGIST_ID:-3fa85f64-5717-4562-b3fc-2c963f66afa6}"
+ADMIN_EMAIL="${ADMIN_EMAIL:-admin@profdnk.local}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin12345}"
 CLIENT_NAME="${CLIENT_NAME:-Иван Иванов}"
 CLIENT_EMAIL="${CLIENT_EMAIL:-ivan@example.com}"
 REPORT_FORMAT="${REPORT_FORMAT:-client_docx}"
@@ -33,15 +35,26 @@ request_json() {
   local method="$1"
   local url="$2"
   local body="${3:-}"
+  local authorization="${4:-}"
   local response
   local status
+  local curl_args=(
+    -sS
+    -w $'\n%{http_code}'
+    -X "$method"
+    "$url"
+    -H 'Content-Type: application/json'
+  )
+
+  if [[ -n "$authorization" ]]; then
+    curl_args+=(-H "Authorization: $authorization")
+  fi
 
   if [[ -n "$body" ]]; then
-    response="$(curl -sS -w $'\n%{http_code}' -X "$method" "$url" \
-      -H 'Content-Type: application/json' \
-      --data-binary "$body")"
+    curl_args+=(--data-binary "$body")
+    response="$(curl "${curl_args[@]}")"
   else
-    response="$(curl -sS -w $'\n%{http_code}' -X "$method" "$url")"
+    response="$(curl "${curl_args[@]}")"
   fi
 
   status="${response##*$'\n'}"
@@ -59,15 +72,26 @@ request_json_soft() {
   local method="$1"
   local url="$2"
   local body="${3:-}"
+  local authorization="${4:-}"
   local response
   local status
+  local curl_args=(
+    -sS
+    -w $'\n%{http_code}'
+    -X "$method"
+    "$url"
+    -H 'Content-Type: application/json'
+  )
+
+  if [[ -n "$authorization" ]]; then
+    curl_args+=(-H "Authorization: $authorization")
+  fi
 
   if [[ -n "$body" ]]; then
-    response="$(curl -sS -w $'\n%{http_code}' -X "$method" "$url" \
-      -H 'Content-Type: application/json' \
-      --data-binary "$body")"
+    curl_args+=(--data-binary "$body")
+    response="$(curl "${curl_args[@]}")"
   else
-    response="$(curl -sS -w $'\n%{http_code}' -X "$method" "$url")"
+    response="$(curl "${curl_args[@]}")"
   fi
 
   status="${response##*$'\n'}"
@@ -82,6 +106,17 @@ require_cmd uuidgen
 print_step "Health"
 request_json GET "$BASE_URL/health"
 pretty_print "$RESPONSE_BODY"
+
+ADMIN_LOGIN_PAYLOAD="$(jq -n \
+  --arg email "$ADMIN_EMAIL" \
+  --arg password "$ADMIN_PASSWORD" \
+  '{email: $email, password: $password}')"
+
+print_step "Admin Login"
+request_json POST "$BASE_URL/public/v1/auth/login" "$ADMIN_LOGIN_PAYLOAD"
+pretty_print "$RESPONSE_BODY"
+ADMIN_ACCESS_TOKEN="$(printf '%s' "$RESPONSE_BODY" | jq -r '.accessToken')"
+ADMIN_AUTHORIZATION="Bearer $ADMIN_ACCESS_TOKEN"
 
 ANSWER_1_UUID="$(uuidgen | tr '[:upper:]' '[:lower:]')"
 ANSWER_2_UUID="$(uuidgen | tr '[:upper:]' '[:lower:]')"
@@ -154,12 +189,12 @@ CREATE_PAYLOAD="$(jq -n \
   }')"
 
 print_step "Create Survey"
-request_json POST "$BASE_URL/api/v1/surveys" "$CREATE_PAYLOAD"
+request_json POST "$BASE_URL/api/v1/surveys" "$CREATE_PAYLOAD" "$ADMIN_AUTHORIZATION"
 pretty_print "$RESPONSE_BODY"
 SURVEY_ID="$(printf '%s' "$RESPONSE_BODY" | jq -r '.surveyId')"
 
 print_step "List Surveys"
-request_json GET "$BASE_URL/api/v1/surveys?psychologistId=$PSYCHOLOGIST_ID"
+request_json GET "$BASE_URL/api/v1/surveys?psychologistId=$PSYCHOLOGIST_ID" "" "$ADMIN_AUTHORIZATION"
 pretty_print "$RESPONSE_BODY"
 
 START_PAYLOAD="$(jq -n \
@@ -207,13 +242,13 @@ request_json POST "$BASE_URL/public/v1/sessions/$SESSION_ID/answers" "$FINISH_PA
 pretty_print "$RESPONSE_BODY"
 
 print_step "Get Session Analytics"
-request_json GET "$BASE_URL/api/v1/sessions/$SESSION_ID/analytics"
+request_json GET "$BASE_URL/api/v1/sessions/$SESSION_ID/analytics" "" "$ADMIN_AUTHORIZATION"
 pretty_print "$RESPONSE_BODY"
 
 REPORT_PAYLOAD="$(jq -n --arg reportFormat "$REPORT_FORMAT" '{reportFormat: $reportFormat}')"
 
 print_step "Manual Report Send"
-request_json_soft POST "$BASE_URL/api/v1/sessions/$SESSION_ID/report/send" "$REPORT_PAYLOAD"
+request_json_soft POST "$BASE_URL/api/v1/sessions/$SESSION_ID/report/send" "$REPORT_PAYLOAD" "$ADMIN_AUTHORIZATION"
 pretty_print "$RESPONSE_BODY"
 if [[ "$RESPONSE_STATUS" -lt 200 || "$RESPONSE_STATUS" -ge 300 ]]; then
   echo "report resend returned HTTP $RESPONSE_STATUS; this is expected when SMTP is not configured" >&2

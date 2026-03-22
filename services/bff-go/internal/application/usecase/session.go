@@ -191,5 +191,30 @@ func validateAnswerPayload(input ports.SubmitAnswerInput) error {
 		return fmt.Errorf("%w: provide only one answer payload", domain.ErrInvalidInput)
 	}
 
+	if answerID := strings.TrimSpace(input.AnswerID); answerID != "" {
+		if err := validateUUID("answerId", answerID); err != nil {
+			return err
+		}
+	}
+
+	if rawText := strings.TrimSpace(input.RawText); input.RawText != "" && rawText == "" {
+		return fmt.Errorf("%w: rawText must not be empty", domain.ErrInvalidInput)
+	}
+
+	if len(input.AnswerIDs) > 0 {
+		seen := make(map[string]struct{}, len(input.AnswerIDs))
+		for _, answerID := range input.AnswerIDs {
+			if err := validateUUID("answerIds[]", answerID); err != nil {
+				return err
+			}
+
+			normalized := strings.TrimSpace(answerID)
+			if _, exists := seen[normalized]; exists {
+				return fmt.Errorf("%w: answerIds must be unique", domain.ErrInvalidInput)
+			}
+			seen[normalized] = struct{}{}
+		}
+	}
+
 	return nil
 }

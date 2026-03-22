@@ -1,9 +1,11 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -25,6 +27,10 @@ type Handler struct {
 	sessions *usecase.SessionUseCase
 	auth     *usecase.AuthUseCase
 }
+
+type contextKey string
+
+const profileContextKey contextKey = "authenticated_profile"
 
 func NewRouter(log *slog.Logger, surveys *usecase.SurveyUseCase, sessions *usecase.SessionUseCase, authUseCase *usecase.AuthUseCase) http.Handler {
 	handler := &Handler{
@@ -50,15 +56,24 @@ func NewRouter(log *slog.Logger, surveys *usecase.SurveyUseCase, sessions *useca
 	})
 
 	router.Route("/api/v1", func(r chi.Router) {
-		r.Post("/surveys", handler.createSurvey)
-		r.Get("/surveys", handler.listSurveys)
-		r.Get("/sessions/{sessionId}/analytics", handler.getSessionAnalytics)
-		r.Post("/sessions/{sessionId}/report/send", handler.sendSessionReport)
-		r.Get("/auth/profile", handler.getProfile)
-		r.Patch("/auth/profile", handler.updateProfile)
-		r.Post("/auth/invitations", handler.createInvitation)
-		r.Post("/auth/users/block", handler.blockUser)
-		r.Post("/auth/users/unblock", handler.unblockUser)
+		r.Group(func(r chi.Router) {
+			r.Use(handler.requireAuthenticatedProfile)
+
+			r.Post("/surveys", handler.createSurvey)
+			r.Get("/surveys", handler.listSurveys)
+			r.Get("/sessions/{sessionId}/analytics", handler.getSessionAnalytics)
+			r.Post("/sessions/{sessionId}/report/send", handler.sendSessionReport)
+			r.Get("/auth/profile", handler.getProfile)
+		})
+
+		r.Group(func(r chi.Router) {
+			r.Use(handler.requireAdminProfile)
+
+			r.Patch("/auth/profile", handler.updateProfile)
+			r.Post("/auth/invitations", handler.createInvitation)
+			r.Post("/auth/users/block", handler.blockUser)
+			r.Post("/auth/users/unblock", handler.unblockUser)
+		})
 	})
 
 	router.Route("/public/v1", func(r chi.Router) {
@@ -153,8 +168,20 @@ func (h *Handler) createSurvey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	profile, err := authenticatedProfileFromContext(r.Context())
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+
+	psychologistID, err := resolvePsychologistID(profile, req.PsychologistID)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+
 	draft := domain.SurveyDraft{
-		PsychologistID: req.PsychologistID,
+		PsychologistID: psychologistID,
 		Title:          req.Title,
 		Description:    req.Description,
 		Settings:       req.Settings,
@@ -197,9 +224,21 @@ func (h *Handler) createSurvey(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) listSurveys(w http.ResponseWriter, r *http.Request) {
+	profile, err := authenticatedProfileFromContext(r.Context())
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+
 	psychologistID := r.URL.Query().Get("psychologistId")
 	if psychologistID == "" {
 		psychologistID = r.URL.Query().Get("psychologist_id")
+	}
+
+	psychologistID, err = resolvePsychologistID(profile, psychologistID)
+	if err != nil {
+		writeError(w, err)
+		return
 	}
 
 	surveys, err := h.surveys.ListSurveys(r.Context(), psychologistID)
@@ -337,7 +376,13 @@ func (h *Handler) sendSessionReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	delivery, err := h.sessions.SendClientReport(r.Context(), sessionID, domain.ParseReportFormat(req.ReportFormat))
+	reportFormat, err := domain.ValidateReportFormat(req.ReportFormat)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+
+	delivery, err := h.sessions.SendClientReport(r.Context(), sessionID, reportFormat)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -400,7 +445,7 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) getProfile(w http.ResponseWriter, r *http.Request) {
-	profile, err := h.auth.GetProfile(r.Context(), r.Header.Get("Authorization"))
+	profile, err := authenticatedProfileFromContext(r.Context())
 	if err != nil {
 		writeError(w, err)
 		return
@@ -512,6 +557,67 @@ func (h *Handler) unblockUser(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"status": "unblocked", "email": req.Email})
 }
 
+func (h *Handler) requireAuthenticatedProfile(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		profile, err := h.auth.Authenticate(r.Context(), r.Header.Get("Authorization"))
+		if err != nil {
+			writeError(w, err)
+			return
+		}
+
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), profileContextKey, profile)))
+	})
+}
+
+func (h *Handler) requireAdminProfile(next http.Handler) http.Handler {
+	return h.requireAuthenticatedProfile(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		profile, err := authenticatedProfileFromContext(r.Context())
+		if err != nil {
+			writeError(w, err)
+			return
+		}
+
+		if !isAdminRole(profile.Role) {
+			writeError(w, fmt.Errorf("%w: admin role is required", domain.ErrForbidden))
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	}))
+}
+
+func authenticatedProfileFromContext(ctx context.Context) (*domain.UserProfile, error) {
+	profile, ok := ctx.Value(profileContextKey).(*domain.UserProfile)
+	if !ok || profile == nil {
+		return nil, fmt.Errorf("%w: authenticated profile is missing", domain.ErrForbidden)
+	}
+
+	return profile, nil
+}
+
+func resolvePsychologistID(profile *domain.UserProfile, provided string) (string, error) {
+	provided = strings.TrimSpace(provided)
+
+	switch strings.ToLower(strings.TrimSpace(profile.Role)) {
+	case "psychologist":
+		if provided != "" && provided != profile.ID {
+			return "", fmt.Errorf("%w: psychologistId must match authenticated user", domain.ErrForbidden)
+		}
+		return profile.ID, nil
+	case "admin":
+		if provided == "" {
+			return "", fmt.Errorf("%w: psychologistId is required for admin requests", domain.ErrInvalidInput)
+		}
+		return provided, nil
+	default:
+		return "", fmt.Errorf("%w: unsupported role %q", domain.ErrForbidden, profile.Role)
+	}
+}
+
+func isAdminRole(role string) bool {
+	return strings.EqualFold(strings.TrimSpace(role), "admin")
+}
+
 func mapQuestion(question *domain.Question) map[string]any {
 	if question == nil {
 		return nil
@@ -608,7 +714,7 @@ func decodeJSON(r *http.Request, dest any) error {
 		if strings.Contains(err.Error(), "EOF") {
 			return errEmptyBody
 		}
-		return fmtError(err)
+		return formatDecodeError(err)
 	}
 
 	if decoder.More() {
@@ -626,7 +732,7 @@ func writeJSON(w http.ResponseWriter, statusCode int, payload any) {
 
 func writeError(w http.ResponseWriter, err error) {
 	statusCode := http.StatusInternalServerError
-	code := "internal_error"
+	code := "internal"
 	message := err.Error()
 
 	switch {
@@ -637,32 +743,55 @@ func writeError(w http.ResponseWriter, err error) {
 	case errors.Is(err, domain.ErrInvalidInput), errors.Is(err, domain.ErrEmailRequired):
 		statusCode = http.StatusBadRequest
 		code = "invalid_request"
+	case errors.Is(err, domain.ErrForbidden):
+		statusCode = http.StatusForbidden
+		code = "forbidden"
 	case errors.Is(err, domain.ErrReportDeliveryDisabled):
 		statusCode = http.StatusServiceUnavailable
 		code = "report_delivery_disabled"
+	case errors.Is(err, domain.ErrUpstreamResponse):
+		statusCode = http.StatusBadGateway
+		code = "bad_gateway"
 	default:
 		if statusErr, ok := grpcstatus.FromError(err); ok {
-			code = strings.ToLower(statusErr.Code().String())
 			message = statusErr.Message()
 			switch statusErr.Code() {
 			case codes.InvalidArgument:
 				statusCode = http.StatusBadRequest
+				code = "invalid_request"
 			case codes.NotFound:
 				statusCode = http.StatusNotFound
+				code = "not_found"
 			case codes.AlreadyExists:
 				statusCode = http.StatusConflict
+				code = "already_exists"
 			case codes.FailedPrecondition:
 				statusCode = http.StatusPreconditionFailed
+				code = "failed_precondition"
 			case codes.PermissionDenied:
 				statusCode = http.StatusForbidden
+				code = "forbidden"
 			case codes.Unauthenticated:
 				statusCode = http.StatusUnauthorized
+				code = "unauthenticated"
 			case codes.Unimplemented:
 				statusCode = http.StatusNotImplemented
+				code = "not_implemented"
 			case codes.Unavailable:
 				statusCode = http.StatusServiceUnavailable
+				code = "service_unavailable"
+			case codes.DeadlineExceeded:
+				statusCode = http.StatusGatewayTimeout
+				code = "gateway_timeout"
+			case codes.ResourceExhausted:
+				statusCode = http.StatusTooManyRequests
+				code = "rate_limited"
+			case codes.Internal:
+				statusCode = http.StatusBadGateway
+				code = "bad_gateway"
 			default:
 				statusCode = http.StatusBadGateway
+				code = "bad_gateway"
 			}
 		}
 	}
@@ -677,4 +806,26 @@ func writeError(w http.ResponseWriter, err error) {
 
 func fmtError(err error) error {
 	return fmt.Errorf("%w: %s", domain.ErrInvalidInput, err.Error())
+}
+
+func formatDecodeError(err error) error {
+	var syntaxErr *json.SyntaxError
+	var typeErr *json.UnmarshalTypeError
+
+	switch {
+	case errors.As(err, &syntaxErr):
+		return fmtError(fmt.Errorf("invalid JSON at position %d", syntaxErr.Offset))
+	case errors.Is(err, io.ErrUnexpectedEOF):
+		return fmtError(errors.New("invalid JSON"))
+	case errors.As(err, &typeErr):
+		if typeErr.Field != "" {
+			return fmtError(fmt.Errorf("field %s has invalid type", typeErr.Field))
+		}
+		return fmtError(errors.New("request body contains values with invalid types"))
+	case strings.HasPrefix(err.Error(), "json: unknown field "):
+		field := strings.TrimPrefix(err.Error(), "json: unknown field ")
+		return fmtError(fmt.Errorf("unknown field %s", field))
+	default:
+		return fmtError(err)
+	}
 }

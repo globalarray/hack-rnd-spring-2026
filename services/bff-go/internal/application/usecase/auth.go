@@ -63,6 +63,10 @@ func (uc *AuthUseCase) GetProfile(ctx context.Context, authorization string) (*d
 	return uc.auth.GetProfile(ctx, authorization)
 }
 
+func (uc *AuthUseCase) Authenticate(ctx context.Context, authorization string) (*domain.UserProfile, error) {
+	return uc.GetProfile(ctx, authorization)
+}
+
 func (uc *AuthUseCase) UpdateProfile(ctx context.Context, authorization string, input domain.ProfileUpdate) (*domain.UserProfile, error) {
 	if err := validateAuthorizationHeader(authorization); err != nil {
 		return nil, err
@@ -100,6 +104,24 @@ func (uc *AuthUseCase) CreateInvitation(ctx context.Context, authorization strin
 	}
 	if !input.ExpiresAt.After(time.Now()) {
 		return nil, fmt.Errorf("%w: expiresAt must be in the future", domain.ErrInvalidInput)
+	}
+	if input.AccessUntil.Before(time.Now().Add(-24 * time.Hour)) {
+		return nil, fmt.Errorf("%w: accessUntil must not be in the past", domain.ErrInvalidInput)
+	}
+	if role, err := normalizeInvitationRole(input.Role); err != nil {
+		return nil, err
+	} else {
+		input.Role = role
+	}
+	accessUntilEndOfDay := time.Date(
+		input.AccessUntil.Year(),
+		input.AccessUntil.Month(),
+		input.AccessUntil.Day(),
+		23, 59, 59, 0,
+		input.AccessUntil.Location(),
+	)
+	if input.ExpiresAt.After(accessUntilEndOfDay) {
+		return nil, fmt.Errorf("%w: expiresAt must not be later than accessUntil", domain.ErrInvalidInput)
 	}
 
 	token, err := uc.auth.CreateInvitation(ctx, authorization, input)
@@ -172,4 +194,14 @@ func validatePassword(value string) error {
 	}
 
 	return nil
+}
+
+func normalizeInvitationRole(value string) (string, error) {
+	role := strings.ToLower(strings.TrimSpace(value))
+	switch role {
+	case "", "psychologist":
+		return "psychologist", nil
+	default:
+		return "", fmt.Errorf("%w: only psychologist invitations are supported", domain.ErrInvalidInput)
+	}
 }

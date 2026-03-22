@@ -2,6 +2,8 @@ package analytics
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"google.golang.org/grpc"
 	analyticspb "sourcecraft.dev/benzo/bff/internal/clients/grpc/analyticspb"
@@ -48,9 +50,23 @@ func (c *Client) GenerateReport(ctx context.Context, analytics domain.SessionAna
 		return nil, err
 	}
 
+	fileName := strings.TrimSpace(resp.GetSuggestedFilename())
+	if fileName == "" {
+		return nil, fmt.Errorf("%w: analytics response is missing filename", domain.ErrUpstreamResponse)
+	}
+
+	contentType := strings.TrimSpace(resp.GetContentType())
+	if contentType == "" {
+		return nil, fmt.Errorf("%w: analytics response is missing content type", domain.ErrUpstreamResponse)
+	}
+
+	if len(resp.GetFileContent()) == 0 {
+		return nil, fmt.Errorf("%w: analytics response is missing file content", domain.ErrUpstreamResponse)
+	}
+
 	return &domain.GeneratedReport{
-		FileName:    resp.GetSuggestedFilename(),
-		ContentType: resp.GetContentType(),
+		FileName:    fileName,
+		ContentType: contentType,
 		Content:     resp.GetFileContent(),
 	}, nil
 }

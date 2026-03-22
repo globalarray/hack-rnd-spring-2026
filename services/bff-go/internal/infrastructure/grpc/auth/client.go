@@ -2,8 +2,10 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
+	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
@@ -29,7 +31,7 @@ func (c *Client) Login(ctx context.Context, email, password string) (*domain.Aut
 		return nil, err
 	}
 
-	return mapTokens(resp), nil
+	return mapTokens(resp)
 }
 
 func (c *Client) RefreshToken(ctx context.Context, refreshToken string) (*domain.AuthTokens, error) {
@@ -38,7 +40,7 @@ func (c *Client) RefreshToken(ctx context.Context, refreshToken string) (*domain
 		return nil, err
 	}
 
-	return mapTokens(resp), nil
+	return mapTokens(resp)
 }
 
 func (c *Client) Register(ctx context.Context, token, password string) (*domain.AuthTokens, error) {
@@ -50,7 +52,7 @@ func (c *Client) Register(ctx context.Context, token, password string) (*domain.
 		return nil, err
 	}
 
-	return mapTokens(resp), nil
+	return mapTokens(resp)
 }
 
 func (c *Client) GetProfile(ctx context.Context, authorization string) (*domain.UserProfile, error) {
@@ -59,7 +61,7 @@ func (c *Client) GetProfile(ctx context.Context, authorization string) (*domain.
 		return nil, err
 	}
 
-	return mapProfile(resp), nil
+	return mapProfile(resp)
 }
 
 func (c *Client) UpdateProfile(ctx context.Context, authorization string, input domain.ProfileUpdate) (*domain.UserProfile, error) {
@@ -71,13 +73,17 @@ func (c *Client) UpdateProfile(ctx context.Context, authorization string, input 
 		return nil, err
 	}
 
-	return mapProfile(resp), nil
+	return mapProfile(resp)
 }
 
 func (c *Client) GetPublicProfile(ctx context.Context, userID string) (*domain.PublicProfile, error) {
 	resp, err := c.client.GetPublicProfile(ctx, &authpb.PublicProfileRequest{UserId: userID})
 	if err != nil {
 		return nil, err
+	}
+
+	if strings.TrimSpace(resp.GetFullName()) == "" {
+		return nil, fmt.Errorf("%w: auth public profile is missing fullName", domain.ErrUpstreamResponse)
 	}
 
 	return &domain.PublicProfile{
@@ -100,7 +106,12 @@ func (c *Client) CreateInvitation(ctx context.Context, authorization string, inp
 		return "", err
 	}
 
-	return resp.GetToken(), nil
+	token := strings.TrimSpace(resp.GetToken())
+	if _, err := uuid.Parse(token); err != nil {
+		return "", fmt.Errorf("%w: auth invitation token is invalid", domain.ErrUpstreamResponse)
+	}
+
+	return token, nil
 }
 
 func (c *Client) BlockUser(ctx context.Context, authorization, email string) error {
@@ -118,9 +129,17 @@ func withAuthorization(ctx context.Context, authorization string) context.Contex
 	return metadata.NewOutgoingContext(ctx, md)
 }
 
-func mapTokens(resp *authpb.TokenResponse) *domain.AuthTokens {
+func mapTokens(resp *authpb.TokenResponse) (*domain.AuthTokens, error) {
 	if resp == nil {
-		return nil
+		return nil, fmt.Errorf("%w: auth token response is empty", domain.ErrUpstreamResponse)
+	}
+
+	if strings.TrimSpace(resp.GetAccessToken()) == "" || strings.TrimSpace(resp.GetRefreshToken()) == "" {
+		return nil, fmt.Errorf("%w: auth token response is missing tokens", domain.ErrUpstreamResponse)
+	}
+
+	if strings.TrimSpace(resp.GetRole()) == "" {
+		return nil, fmt.Errorf("%w: auth token response is missing role", domain.ErrUpstreamResponse)
 	}
 
 	return &domain.AuthTokens{
@@ -128,16 +147,29 @@ func mapTokens(resp *authpb.TokenResponse) *domain.AuthTokens {
 		RefreshToken: resp.GetRefreshToken(),
 		ExpiresIn:    resp.GetExpiresIn(),
 		Role:         resp.GetRole(),
-	}
+	}, nil
 }
 
-func mapProfile(resp *authpb.ProfileResponse) *domain.UserProfile {
+func mapProfile(resp *authpb.ProfileResponse) (*domain.UserProfile, error) {
 	if resp == nil {
-		return nil
+		return nil, fmt.Errorf("%w: auth profile response is empty", domain.ErrUpstreamResponse)
+	}
+
+	id := strings.TrimSpace(resp.GetId())
+	if _, err := uuid.Parse(id); err != nil {
+		return nil, fmt.Errorf("%w: auth profile id is invalid", domain.ErrUpstreamResponse)
+	}
+
+	if strings.TrimSpace(resp.GetEmail()) == "" {
+		return nil, fmt.Errorf("%w: auth profile email is missing", domain.ErrUpstreamResponse)
+	}
+
+	if strings.TrimSpace(resp.GetRole()) == "" {
+		return nil, fmt.Errorf("%w: auth profile role is missing", domain.ErrUpstreamResponse)
 	}
 
 	profile := &domain.UserProfile{
-		ID:       resp.GetId(),
+		ID:       id,
 		Email:    resp.GetEmail(),
 		FullName: resp.GetFullName(),
 		Phone:    resp.GetPhone(),
@@ -151,5 +183,5 @@ func mapProfile(resp *authpb.ProfileResponse) *domain.UserProfile {
 		profile.AccessUntil = accessUntil.AsTime()
 	}
 
-	return profile
+	return profile, nil
 }

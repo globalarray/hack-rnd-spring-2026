@@ -3,7 +3,9 @@ package engine
 import (
 	"context"
 	"fmt"
+	"strings"
 
+	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/structpb"
 	"sourcecraft.dev/benzo/bff/internal/application/ports"
@@ -73,7 +75,12 @@ func (c *Client) CreateSurvey(ctx context.Context, draft domain.SurveyDraft) (st
 		return "", err
 	}
 
-	return resp.GetSurveyId(), nil
+	surveyID := strings.TrimSpace(resp.GetSurveyId())
+	if _, err := uuid.Parse(surveyID); err != nil {
+		return "", fmt.Errorf("%w: engine create survey response has invalid surveyId", domain.ErrUpstreamResponse)
+	}
+
+	return surveyID, nil
 }
 
 func (c *Client) ListSurveys(ctx context.Context, psychologistID string) ([]domain.SurveySummary, error) {
@@ -85,8 +92,13 @@ func (c *Client) ListSurveys(ctx context.Context, psychologistID string) ([]doma
 
 	surveys := make([]domain.SurveySummary, 0, len(resp.GetSurveys()))
 	for _, survey := range resp.GetSurveys() {
+		surveyID := strings.TrimSpace(survey.GetSurveyId())
+		if _, err := uuid.Parse(surveyID); err != nil {
+			return nil, fmt.Errorf("%w: engine list surveys response has invalid surveyId", domain.ErrUpstreamResponse)
+		}
+
 		surveys = append(surveys, domain.SurveySummary{
-			SurveyID:         survey.GetSurveyId(),
+			SurveyID:         surveyID,
 			Title:            survey.GetTitle(),
 			CompletionsCount: survey.GetCompletionsCount(),
 		})
@@ -105,7 +117,21 @@ func (c *Client) StartSession(ctx context.Context, surveyID, clientMetadataJSON 
 		return "", nil, err
 	}
 
-	return resp.GetSessionId(), mapQuestionFromProto(resp.GetFirstQuestion()), nil
+	sessionID := strings.TrimSpace(resp.GetSessionId())
+	if _, err := uuid.Parse(sessionID); err != nil {
+		return "", nil, fmt.Errorf("%w: engine start session response has invalid sessionId", domain.ErrUpstreamResponse)
+	}
+
+	question, err := mapQuestionFromProto(resp.GetFirstQuestion())
+	if err != nil {
+		return "", nil, err
+	}
+
+	if question == nil {
+		return "", nil, fmt.Errorf("%w: engine start session response is missing firstQuestion", domain.ErrUpstreamResponse)
+	}
+
+	return sessionID, question, nil
 }
 
 func (c *Client) GetCurrentQuestion(ctx context.Context, sessionID string) (*domain.Question, error) {
@@ -115,7 +141,7 @@ func (c *Client) GetCurrentQuestion(ctx context.Context, sessionID string) (*dom
 		return nil, err
 	}
 
-	return mapQuestionFromProto(resp), nil
+	return mapQuestionFromProto(resp)
 }
 
 func (c *Client) SubmitAnswer(ctx context.Context, input ports.SubmitAnswerInput) (string, bool, error) {
@@ -154,13 +180,18 @@ func (c *Client) GetSessionAnalytics(ctx context.Context, sessionID string) (*do
 
 	clientMetadata, err := domain.ParseClientMetadataJSON(resp.GetClientMetadataJson())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: engine analytics response contains invalid clientMetadataJson", domain.ErrUpstreamResponse)
 	}
 
 	responses := make([]domain.AnalyticsResponse, 0, len(resp.GetResponses()))
 	for _, response := range resp.GetResponses() {
+		questionID := strings.TrimSpace(response.GetQuestionId())
+		if _, err := uuid.Parse(questionID); err != nil {
+			return nil, fmt.Errorf("%w: engine analytics response contains invalid questionId", domain.ErrUpstreamResponse)
+		}
+
 		responses = append(responses, domain.AnalyticsResponse{
-			QuestionID:     response.GetQuestionId(),
+			QuestionID:     questionID,
 			QuestionType:   mapQuestionTypeFromProto(response.GetQuestionType()),
 			QuestionText:   response.GetQuestionText(),
 			SelectedWeight: response.GetSelectedWeight(),
@@ -169,9 +200,19 @@ func (c *Client) GetSessionAnalytics(ctx context.Context, sessionID string) (*do
 		})
 	}
 
+	surveyID := strings.TrimSpace(resp.GetSurveyId())
+	if _, err := uuid.Parse(surveyID); err != nil {
+		return nil, fmt.Errorf("%w: engine analytics response has invalid surveyId", domain.ErrUpstreamResponse)
+	}
+
+	respSessionID := strings.TrimSpace(resp.GetSessionId())
+	if _, err := uuid.Parse(respSessionID); err != nil {
+		return nil, fmt.Errorf("%w: engine analytics response has invalid sessionId", domain.ErrUpstreamResponse)
+	}
+
 	return &domain.SessionAnalytics{
-		SurveyID:       resp.GetSurveyId(),
-		SessionID:      resp.GetSessionId(),
+		SurveyID:       surveyID,
+		SessionID:      respSessionID,
 		ClientMetadata: clientMetadata,
 		Responses:      responses,
 	}, nil
@@ -190,25 +231,35 @@ func structFromMap(values map[string]any) (*structpb.Struct, error) {
 	return payload, nil
 }
 
-func mapQuestionFromProto(question *enginepb.QuestionClientView) *domain.Question {
+func mapQuestionFromProto(question *enginepb.QuestionClientView) (*domain.Question, error) {
 	if question == nil {
-		return nil
+		return nil, nil
+	}
+
+	questionID := strings.TrimSpace(question.GetQuestionId())
+	if _, err := uuid.Parse(questionID); err != nil {
+		return nil, fmt.Errorf("%w: engine question response has invalid questionId", domain.ErrUpstreamResponse)
 	}
 
 	answers := make([]domain.AnswerOption, 0, len(question.GetAnswers()))
 	for _, answer := range question.GetAnswers() {
+		answerID := strings.TrimSpace(answer.GetAnswerId())
+		if _, err := uuid.Parse(answerID); err != nil {
+			return nil, fmt.Errorf("%w: engine question response has invalid answerId", domain.ErrUpstreamResponse)
+		}
+
 		answers = append(answers, domain.AnswerOption{
-			ID:   answer.GetAnswerId(),
+			ID:   answerID,
 			Text: answer.GetText(),
 		})
 	}
 
 	return &domain.Question{
-		ID:      question.GetQuestionId(),
+		ID:      questionID,
 		Type:    mapQuestionTypeFromProto(question.GetType()),
 		Text:    question.GetText(),
 		Answers: answers,
-	}
+	}, nil
 }
 
 func mapQuestionTypeToProto(questionType domain.QuestionType) enginepb.QuestionType {

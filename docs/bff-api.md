@@ -39,13 +39,16 @@ Typical codes:
 
 - `invalid_request`
 - `not_found`
-- `alreadyexists`
+- `already_exists`
 - `unauthenticated`
-- `permissiondenied`
-- `failedprecondition`
-- `unimplemented`
+- `forbidden`
+- `failed_precondition`
+- `not_implemented`
+- `bad_gateway`
+- `gateway_timeout`
+- `rate_limited`
 - `service_unavailable`
-- `internal_error`
+- `internal`
 
 ## Question Types
 
@@ -413,6 +416,11 @@ Important frontend behavior:
 
 `POST /api/v1/surveys`
 
+Requires:
+
+- `Authorization: Bearer <accessToken>`
+- authenticated `psychologist` or `admin`
+
 Request:
 
 ```json
@@ -458,6 +466,9 @@ Notes:
 
 - canonical backend key is `settings.limits.time_limit`
 - `settings.limits.time_limit_sec` is also accepted for compatibility
+- for authenticated psychologists, `psychologistId` must either match their own profile id or be omitted by the frontend
+- for administrators, `psychologistId` is required because admin acts on behalf of a psychologist
+- BFF validates question order uniqueness and answer id uniqueness before calling `engine-go`
 
 Response:
 
@@ -470,6 +481,10 @@ Response:
 ### 2. List Surveys
 
 `GET /api/v1/surveys?psychologistId=3fa85f64-5717-4562-b3fc-2c963f66afa6`
+
+Requires:
+
+- `Authorization: Bearer <accessToken>`
 
 Response:
 
@@ -488,6 +503,10 @@ Response:
 ### 3. Get Session Analytics
 
 `GET /api/v1/sessions/{sessionId}/analytics`
+
+Requires:
+
+- `Authorization: Bearer <accessToken>`
 
 Response:
 
@@ -516,6 +535,10 @@ Response:
 ### 4. Manual Report Resend
 
 `POST /api/v1/sessions/{sessionId}/report/send`
+
+Requires:
+
+- `Authorization: Bearer <accessToken>`
 
 Optional request body:
 

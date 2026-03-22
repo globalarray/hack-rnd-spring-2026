@@ -280,6 +280,7 @@ ANSWER_4_UUID=$(uuidgen | tr '[:upper:]' '[:lower:]')
 
 CREATE_RESP=$(curl -s -X POST http://localhost:8080/api/v1/surveys \
   -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $ADMIN_ACCESS_TOKEN" \
   -d @- <<JSON
 {
   "psychologistId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
@@ -355,7 +356,9 @@ SURVEY_ID=$(echo "$CREATE_RESP" | jq -r '.surveyId')
 Проверить, что тест появился в кабинете:
 
 ```bash
-curl -s "http://localhost:8080/api/v1/surveys?psychologistId=3fa85f64-5717-4562-b3fc-2c963f66afa6" | jq
+curl -s "http://localhost:8080/api/v1/surveys?psychologistId=3fa85f64-5717-4562-b3fc-2c963f66afa6" \
+  -H "Authorization: Bearer $ADMIN_ACCESS_TOKEN" \
+  | jq
 ```
 
 ## 5. Start Session
@@ -466,7 +469,9 @@ echo "$FINISH_RESP" | jq
 ## 9. Check Analytics
 
 ```bash
-curl -s "http://localhost:8080/api/v1/sessions/$SESSION_ID/analytics" | jq
+curl -s "http://localhost:8080/api/v1/sessions/$SESSION_ID/analytics" \
+  -H "Authorization: Bearer $ADMIN_ACCESS_TOKEN" \
+  | jq
 ```
 
 Ожидаемо:
@@ -480,6 +485,7 @@ curl -s "http://localhost:8080/api/v1/sessions/$SESSION_ID/analytics" | jq
 ```bash
 curl -s -X POST "http://localhost:8080/api/v1/sessions/$SESSION_ID/report/send" \
   -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $ADMIN_ACCESS_TOKEN" \
   -d '{"reportFormat":"client_docx"}' \
   | jq
 ```
