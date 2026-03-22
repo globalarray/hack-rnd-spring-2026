@@ -94,6 +94,8 @@ REBUILD_PROTO=true task proto
 Эта команда:
 
 - проверит наличие `protoc`;
+- пересоберет `protoc-gen-go`, `protoc-gen-go-grpc` и `protoc-gen-validate` под текущую ОС/архитектуру;
+- при отсутствии `pip` попытается поднять его автоматически;
 - сгенерирует shared Go-контракты для `engine-go` и `bff-go`;
 - пересоберет Python gRPC-контракт для `analytics-python`.
 

@@ -100,25 +100,27 @@ tasks:
 
         protoc --version
   proto:ensure-go-tools:
-    desc: "Устанавливает локальные Go-плагины для protoc"
+    desc: "Устанавливает локальные Go-плагины для protoc под текущую платформу"
     deps: [proto:ensure-protoc]
     cmds:
       - |
         set -eu
+        if ! command -v go >/dev/null 2>&1; then
+          echo "Go toolchain not found. Install Go and rerun the task."
+          exit 1
+        fi
+
         mkdir -p "{{.TOOLS_BIN}}"
         export GOBIN="{{.TOOLS_BIN}}"
+        export PATH="{{.TOOLS_BIN}}:$PATH"
 
-        if [ ! -x "{{.TOOLS_BIN}}/protoc-gen-go" ]; then
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
-        fi
+        echo "Installing Go protoc plugins for the current OS/architecture..."
+        go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+        go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
+        go install github.com/envoyproxy/protoc-gen-validate@v1.3.0
 
-        if [ ! -x "{{.TOOLS_BIN}}/protoc-gen-go-grpc" ]; then
-          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
-        fi
-
-        if [ ! -x "{{.TOOLS_BIN}}/protoc-gen-validate" ]; then
-          go install github.com/envoyproxy/protoc-gen-validate@v1.3.0
-        fi
+        "{{.TOOLS_BIN}}/protoc-gen-go" --version
+        "{{.TOOLS_BIN}}/protoc-gen-go-grpc" --version
   proto:ensure-python-tools:
     desc: "Устанавливает Python-инструменты для генерации grpc/python контрактов"
     cmds:
@@ -130,6 +132,24 @@ tasks:
         then
           echo "grpc_tools already installed"
           exit 0
+        fi
+
+        if ! python3 -m pip --version >/dev/null 2>&1; then
+          echo "pip not found, bootstrapping..."
+
+          if python3 -m ensurepip --upgrade --user >/dev/null 2>&1; then
+            echo "pip bootstrapped via ensurepip"
+          elif command -v brew >/dev/null 2>&1; then
+            brew install python
+          elif command -v apt-get >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y python3-pip python3-venv
+          elif command -v apk >/dev/null 2>&1; then
+            sudo apk add py3-pip python3
+          else
+            echo "Could not install pip automatically. Install python3-pip manually and rerun the task."
+            exit 1
+          fi
         fi
 
         python3 -m pip install --user grpcio grpcio-tools protobuf
