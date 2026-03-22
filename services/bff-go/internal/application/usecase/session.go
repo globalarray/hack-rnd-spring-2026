@@ -83,16 +83,17 @@ func (uc *SessionUseCase) SubmitAnswer(ctx context.Context, input ports.SubmitAn
 		IsFinished:     isFinished,
 	}
 
-	if !isFinished && strings.TrimSpace(nextQuestionID) != "" {
+	if !isFinished {
 		nextQuestion, err := uc.engine.GetCurrentQuestion(ctx, input.SessionID)
 		if err != nil {
 			return nil, err
 		}
-		result.NextQuestion = nextQuestion
-		return result, nil
-	}
 
-	if !isFinished {
+		if nextQuestion != nil && strings.TrimSpace(result.NextQuestionID) == "" {
+			result.NextQuestionID = nextQuestion.ID
+		}
+
+		result.NextQuestion = nextQuestion
 		return result, nil
 	}
 
