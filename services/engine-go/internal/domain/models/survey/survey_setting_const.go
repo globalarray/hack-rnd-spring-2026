@@ -11,7 +11,8 @@ const (
 )
 
 const (
-	LimitTimeLimit = "time_limit"
+	LimitTimeLimit    = "time_limit"
+	LimitTimeLimitSec = "time_limit_sec"
 )
 
 const (

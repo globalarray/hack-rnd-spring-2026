@@ -271,6 +271,11 @@ Request:
 }
 ```
 
+Notes:
+
+- canonical backend key is `settings.limits.time_limit`
+- `settings.limits.time_limit_sec` is also accepted for compatibility
+
 Response:
 
 ```json

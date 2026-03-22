@@ -2,6 +2,12 @@
 
 Готовые запросы для всех REST-ручек `bff-go`.
 
+Если нужен полный happy-path одной командой, можно использовать готовый скрипт:
+
+```bash
+bash /Users/globalarray/hack-rnd-2026-spring/scripts/smoke-test-bff.sh
+```
+
 Базовый URL:
 
 ```bash

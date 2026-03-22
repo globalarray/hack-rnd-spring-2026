@@ -29,6 +29,12 @@ func (s SurveySettingMap) GetFloat64(group SurveyGroup, setting string, defaultV
 		if v, ok := v[setting].(float64); ok {
 			return v
 		}
+
+		if setting == LimitTimeLimit {
+			if v, ok := v[LimitTimeLimitSec].(float64); ok {
+				return v
+			}
+		}
 	}
 
 	return defaultValue
@@ -52,7 +58,12 @@ func (s SurveySettingMap) validateLimits() error {
 		return nil
 	}
 
-	if v, ok := group[LimitTimeLimit].(float64); ok {
+	v, ok := group[LimitTimeLimit].(float64)
+	if !ok {
+		v, ok = group[LimitTimeLimitSec].(float64)
+	}
+
+	if ok {
 		if v < 0 || v > 86400 {
 			return fmt.Errorf("%s.%s must be between 0 and 86400 seconds", LimitsGroup, LimitTimeLimit)
 		}

@@ -82,6 +82,12 @@ DEFAULT_CLIENT_REPORT_FORMAT=client_docx
 - отчет сгенерируется на уровне логики;
 - но `reportDelivery.status` будет `failed`.
 
+Важно по лимиту времени:
+
+- `engine-go` читает канонический ключ `settings.limits.time_limit`
+- для обратной совместимости также поддерживается `settings.limits.time_limit_sec`
+- в примерах ниже можно оставлять `time_limit_sec`
+
 ## 3. Start the Stack
 
 Перед стартом полезно синхронизировать сгенерированные контракты:
