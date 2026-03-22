@@ -3,6 +3,7 @@ package session
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"sourcecraft.dev/benzo/testengine/internal/domain/models/answer"
 	"sourcecraft.dev/benzo/testengine/internal/domain/models/question"
@@ -27,6 +28,11 @@ func mapSessionStateRecordToDomain(record *dto.SessionStateRecord) (*session.Sta
 }
 
 func mapSessionRecordToDomain(record *dto.SessionRecord) *session.Session {
+	var completedAt time.Time
+	if record.CompletedAt.Valid {
+		completedAt = record.CompletedAt.Time
+	}
+
 	return &session.Session{
 		ID:                record.ID,
 		CurrentQuestionID: record.CurrentRequestID,
@@ -34,7 +40,7 @@ func mapSessionRecordToDomain(record *dto.SessionRecord) *session.Session {
 		Metadata:          record.Metadata,
 		Status:            session.SessionStatus(record.Status),
 		StartedAt:         record.StartedAt,
-		CompletedAt:       record.CompletedAt,
+		CompletedAt:       completedAt,
 	}
 }
 
