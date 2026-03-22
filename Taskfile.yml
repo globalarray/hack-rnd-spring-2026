@@ -223,7 +223,7 @@ tasks:
           -I . \
           --go_out=paths=source_relative:"$testengine_out_dir" \
           --go-grpc_out=paths=source_relative:"$testengine_out_dir" \
-          --validate_out=paths=source_relative:"$testengine_out_dir" \
+          --validate_out=lang=go,paths=source_relative:"$testengine_out_dir" \
           test_engine.proto
   proto:bff-go:
     desc: "Генерирует grpc/go контракты для bff-go"

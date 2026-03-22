@@ -24,7 +24,7 @@ RUN mkdir -p internal/gen/pb && \
     -I /app/proto \
     --go_out=paths=source_relative:internal/gen/pb \
     --go-grpc_out=paths=source_relative:internal/gen/pb \
-    --validate_out=paths=source_relative:internal/gen/pb \
+    --validate_out=lang=go,paths=source_relative:internal/gen/pb \
     /app/proto/test_engine.proto
 
 # Собираем бинарник
