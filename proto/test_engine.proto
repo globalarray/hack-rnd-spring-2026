@@ -81,7 +81,7 @@
 
   message StartSessionRequest {
     string survey_id = 1 [(validate.rules).string.uuid = true];
-    string client_metadata_json = 2;
+    string client_metadata_json = 2; // Должен содержать email и при наличии full_name/fullName/fio для попадания в отчет
   }
 
   message StartSessionResponse {
@@ -90,7 +90,7 @@
   }
 
   message GetSessionCurrentQuestionRequest {
-    string session_id = 1 [(validate.rules).string.uuid = true];;
+    string session_id = 1 [(validate.rules).string.uuid = true];
   }
 
   // Структура для клиента (строго изолирована от логики и баллов)
@@ -107,9 +107,10 @@
   }
 
   message SubmitAnswerRequest {
-    string session_id = 1;
-    string question_id = 2;
+    string session_id = 1 [(validate.rules).string.uuid = true];
+    string question_id = 2 [(validate.rules).string.uuid = true];
 
+    // Ровно один payload должен быть заполнен клиентом.
     oneof payload {
       string answer_id = 3;
       string raw_text = 4;
@@ -118,7 +119,14 @@
   }
 
   message SelectedAnswers {
-    repeated string answer_ids = 1;
+    repeated string answer_ids = 1 [(validate.rules).repeated = {
+      min_items: 1,
+      items: {
+        string: {
+          uuid: true
+        }
+      }
+    }];
   }
 
   message SubmitAnswerResponse {

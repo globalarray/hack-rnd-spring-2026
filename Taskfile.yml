@@ -1,5 +1,9 @@
 version: '3'
 
+vars:
+  ROOT_DIR: '{{.TASKFILE_DIR}}'
+  TOOLS_BIN: '{{.TASKFILE_DIR}}/.tools/bin'
+
 tasks:
   up:
     desc: "Запуск сервиса с подгрузкой нужного .env"
@@ -70,3 +74,224 @@ tasks:
 
       # Чистим временный конфиг
       - rm {{.OUTPUT}}/ext.cnf
+  proto:ensure-protoc:
+    desc: "Проверяет наличие protoc и при необходимости устанавливает его"
+    cmds:
+      - |
+        set -eu
+        if command -v protoc >/dev/null 2>&1; then
+          echo "protoc already installed: $(protoc --version)"
+          exit 0
+        fi
+
+        echo "protoc not found, installing..."
+
+        if command -v brew >/dev/null 2>&1; then
+          brew install protobuf
+        elif command -v apt-get >/dev/null 2>&1; then
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+        elif command -v apk >/dev/null 2>&1; then
+          sudo apk add protobuf protobuf-dev
+        else
+          echo "Unsupported environment. Install protoc manually and rerun the task."
+          exit 1
+        fi
+
+        protoc --version
+  proto:ensure-go-tools:
+    desc: "Устанавливает локальные Go-плагины для protoc"
+    deps: [proto:ensure-protoc]
+    cmds:
+      - |
+        set -eu
+        mkdir -p "{{.TOOLS_BIN}}"
+        export GOBIN="{{.TOOLS_BIN}}"
+
+        if [ ! -x "{{.TOOLS_BIN}}/protoc-gen-go" ]; then
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+        fi
+
+        if [ ! -x "{{.TOOLS_BIN}}/protoc-gen-go-grpc" ]; then
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
+        fi
+
+        if [ ! -x "{{.TOOLS_BIN}}/protoc-gen-validate" ]; then
+          go install github.com/envoyproxy/protoc-gen-validate@v1.3.0
+        fi
+  proto:ensure-python-tools:
+    desc: "Устанавливает Python-инструменты для генерации grpc/python контрактов"
+    cmds:
+      - |
+        set -eu
+        if python3 - <<'PY' >/dev/null 2>&1
+        import grpc_tools.protoc  # noqa: F401
+        PY
+        then
+          echo "grpc_tools already installed"
+          exit 0
+        fi
+
+        python3 -m pip install --user grpcio grpcio-tools protobuf
+  proto:engine-go:
+    desc: "Генерирует grpc_out и validate_out для engine-go"
+    deps: [proto:ensure-go-tools]
+    cmds:
+      - |
+        set -eu
+        export PATH="{{.TOOLS_BIN}}:$PATH"
+        rebuild="${REBUILD_PROTO:-false}"
+        testengine_out_dir="{{.ROOT_DIR}}/services/engine-go/internal/gen/pb"
+        proto_root="{{.ROOT_DIR}}/proto"
+
+        mkdir -p "$testengine_out_dir"
+
+        need_rebuild="$rebuild"
+        for file in \
+          "$testengine_out_dir/test_engine.pb.go" \
+          "$testengine_out_dir/test_engine_grpc.pb.go" \
+          "$testengine_out_dir/test_engine.pb.validate.go"
+        do
+          if [ ! -f "$file" ]; then
+            need_rebuild="true"
+          fi
+        done
+
+        if [ "$need_rebuild" != "true" ]; then
+          echo "engine-go proto already generated, skip"
+          exit 0
+        fi
+
+        cd "$proto_root"
+        protoc \
+          -I . \
+          --go_out=paths=source_relative:"$testengine_out_dir" \
+          --go-grpc_out=paths=source_relative:"$testengine_out_dir" \
+          --validate_out=paths=source_relative:"$testengine_out_dir" \
+          test_engine.proto
+  proto:bff-go:
+    desc: "Генерирует grpc/go контракты для bff-go"
+    deps: [proto:ensure-go-tools]
+    cmds:
+      - |
+        set -eu
+        export PATH="{{.TOOLS_BIN}}:$PATH"
+        rebuild="${REBUILD_PROTO:-false}"
+        proto_root="{{.ROOT_DIR}}/proto"
+        testengine_out_dir="{{.ROOT_DIR}}/services/bff-go/internal/clients/grpc/testenginepb"
+        analytics_out_dir="{{.ROOT_DIR}}/services/bff-go/internal/clients/grpc/analyticspb"
+
+        mkdir -p "$testengine_out_dir" "$analytics_out_dir"
+
+        need_testengine="$rebuild"
+        for file in \
+          "$testengine_out_dir/test_engine.pb.go" \
+          "$testengine_out_dir/test_engine_grpc.pb.go"
+        do
+          if [ ! -f "$file" ]; then
+            need_testengine="true"
+          fi
+        done
+
+        need_analytics="$rebuild"
+        for file in \
+          "$analytics_out_dir/analytics.pb.go" \
+          "$analytics_out_dir/analytics_grpc.pb.go"
+        do
+          if [ ! -f "$file" ]; then
+            need_analytics="true"
+          fi
+        done
+
+        cd "$proto_root"
+
+        if [ "$need_testengine" = "true" ]; then
+          protoc \
+            -I . \
+            --go_out=paths=source_relative:"$testengine_out_dir" \
+            --go-grpc_out=paths=source_relative:"$testengine_out_dir" \
+            test_engine.proto
+        else
+          echo "bff-go test_engine proto already generated, skip"
+        fi
+
+        if [ "$need_analytics" = "true" ]; then
+          protoc \
+            -I . \
+            --go_out=paths=source_relative:"$analytics_out_dir" \
+            --go-grpc_out=paths=source_relative:"$analytics_out_dir" \
+            analytics.proto
+        else
+          echo "bff-go analytics proto already generated, skip"
+        fi
+  proto:analytics-python:
+    desc: "Генерирует Python grpc контракты для analytics-python из shared analytics.proto"
+    deps: [proto:ensure-protoc, proto:ensure-python-tools]
+    cmds:
+      - |
+        set -eu
+        rebuild="${REBUILD_PROTO:-false}"
+        proto_root="{{.ROOT_DIR}}/proto"
+        out_dir="{{.ROOT_DIR}}/services/analytics-python"
+        py_out="$out_dir/analytics_pb2.py"
+        grpc_out="$out_dir/analytics_pb2_grpc.py"
+
+        need_rebuild="$rebuild"
+        if [ ! -f "$py_out" ] || [ ! -f "$grpc_out" ]; then
+          need_rebuild="true"
+        fi
+
+        if [ "$need_rebuild" != "true" ]; then
+          echo "analytics-python proto already generated, skip"
+          exit 0
+        fi
+
+        python3 -m grpc_tools.protoc \
+          -I "$proto_root" \
+          --python_out="$out_dir" \
+          --grpc_python_out="$out_dir" \
+          "$proto_root/analytics.proto"
+  proto:python-services:
+    desc: "Генерирует Python grpc контракты для сервисов с локальными .proto"
+    deps: [proto:ensure-protoc, proto:ensure-python-tools]
+    cmds:
+      - |
+        set -eu
+        rebuild="${REBUILD_PROTO:-false}"
+        proto_files="$(find "{{.ROOT_DIR}}/services" -maxdepth 2 -type f -name '*.proto' | sort || true)"
+
+        if [ -z "$proto_files" ]; then
+          echo "No service-local .proto files found, skip python generation"
+          exit 0
+        fi
+
+        echo "$proto_files" | while IFS= read -r proto_file; do
+          proto_dir="$(dirname "$proto_file")"
+          proto_name="$(basename "$proto_file")"
+          base_name="${proto_name%.proto}"
+          py_out="$proto_dir/${base_name}_pb2.py"
+          grpc_out="$proto_dir/${base_name}_pb2_grpc.py"
+
+          need_rebuild="$rebuild"
+          if [ ! -f "$py_out" ] || [ ! -f "$grpc_out" ]; then
+            need_rebuild="true"
+          fi
+
+          if [ "$need_rebuild" != "true" ]; then
+            echo "python proto already generated for $proto_name, skip"
+            continue
+          fi
+
+          python3 -m grpc_tools.protoc \
+            -I "$proto_dir" \
+            --python_out="$proto_dir" \
+            --grpc_python_out="$proto_dir" \
+            "$proto_file"
+        done
+  proto:
+    desc: "Генерирует proto-контракты для всех сервисов; REBUILD_PROTO=true принудительно регенерирует их"
+    deps:
+      - proto:engine-go
+      - proto:bff-go
+      - proto:analytics-python
+      - proto:python-services

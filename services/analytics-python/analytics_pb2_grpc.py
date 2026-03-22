@@ -26,8 +26,7 @@ if _version_not_supported:
 
 
 class AnalyticsServiceStub(object):
-    """4. Сервис
-    """
+    """Missing associated documentation comment in .proto file."""
 
     def __init__(self, channel):
         """Constructor.
@@ -43,8 +42,7 @@ class AnalyticsServiceStub(object):
 
 
 class AnalyticsServiceServicer(object):
-    """4. Сервис
-    """
+    """Missing associated documentation comment in .proto file."""
 
     def GenerateReport(self, request, context):
         """Missing associated documentation comment in .proto file."""
@@ -69,8 +67,7 @@ def add_AnalyticsServiceServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class AnalyticsService(object):
-    """4. Сервис
-    """
+    """Missing associated documentation comment in .proto file."""
 
     @staticmethod
     def GenerateReport(request,

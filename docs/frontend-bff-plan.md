@@ -36,7 +36,13 @@
 - стартовая анкета;
 - экран вопроса;
 - завершение теста;
-- экран “отчёт готов” или “результаты отправлены психологу”.
+- экран “отчёт отправлен на email”.
+
+Что должна собирать стартовая анкета:
+
+- `email` как обязательное поле;
+- `fullName`, `full_name` или `fio` для персонализации отчёта;
+- любые дополнительные поля, которые психолог добавит в `start_form`.
 
 ## 3. Drag-and-Drop Constructor
 
@@ -153,7 +159,8 @@ type LogicRuleDraft = {
 
 - список прохождений;
 - просмотр статуса генерации отчёта;
-- скачивание результата.
+- ручной resend отчёта на email клиента;
+- email delivery результата клиенту.
 
 ## 5. BFF Role
 
@@ -177,6 +184,7 @@ BFF на Go нужен как публичный backend для фронта.
 - нормализация ошибок;
 - аудит действий психолога;
 - генерация коротких public links.
+- отправка отчёта на email без сохранения файла на диск сервера.
 
 ## 7. Recommended BFF Structure
 
@@ -185,20 +193,16 @@ services/bff-go/
   cmd/bff/main.go
   internal/app/
   internal/config/
-  internal/delivery/rest/
-  internal/delivery/rest/survey/
-  internal/delivery/rest/session/
-  internal/delivery/rest/report/
-  internal/middleware/
-  internal/service/
-  internal/service/survey/
-  internal/service/session/
-  internal/service/report/
-  internal/clients/grpc/engine/
-  internal/clients/grpc/report/
-  internal/clients/http/auth/
   internal/domain/
-  pkg/secure/
+  internal/application/ports/
+  internal/application/usecase/
+  internal/delivery/httpapi/
+  internal/infrastructure/grpc/engine/
+  internal/infrastructure/grpc/analytics/
+  internal/infrastructure/grpc/shared/
+  internal/infrastructure/email/smtp/
+  internal/clients/grpc/testenginepb/
+  internal/clients/grpc/analyticspb/
 ```
 
 ## 8. REST API Surface of BFF
@@ -216,9 +220,9 @@ services/bff-go/
 ### Candidate API
 
 - `POST /public/v1/sessions/start`
+- `POST /public/v1/sessions`
 - `GET /public/v1/sessions/{sessionId}/current-question`
 - `POST /public/v1/sessions/{sessionId}/answers`
-- `GET /public/v1/sessions/{sessionId}/status`
 
 ## 9. BFF-to-Microservice Mapping
 
@@ -235,8 +239,9 @@ services/bff-go/
 
 ### Report operations
 
-- BFF `GET /api/v1/sessions/{id}/report` -> report-service orchestration
-- report-service -> `engine-go.GetSessionDataForAnalytics`
+- BFF `POST /api/v1/sessions/{id}/report/send` -> report-service orchestration + SMTP
+- BFF -> `engine-go.GetSessionDataForAnalytics`
+- BFF -> `analytics-python.GenerateReport`
 
 ## 10. BFF Service Layer Design
 

@@ -174,7 +174,11 @@
 - `client_metadata_json`
 - `responses[]`
 
-Именно эту ручку должен вызывать Python-сервис генерации отчёта.
+Текущее рекомендуемое использование:
+
+- `BFF` вызывает `GetSessionDataForAnalytics`
+- затем `BFF` передает `responses[]` и `client_metadata_json` в Python report-service по `analytics.proto`
+- `client_metadata_json` должен включать `email`, а для персонализации отчёта рекомендуется `fullName`, `full_name` или `fio`
 
 ## 5. Primary Business Flows
 
@@ -217,11 +221,13 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant Report as Python Report Generator
+    participant BFF as BFF
     participant ENG as engine-go
+    participant Report as Python Report Generator
 
-    Report->>ENG: GetSessionDataForAnalytics(session_id)
-    ENG-->>Report: raw answers + metadata
+    BFF->>ENG: GetSessionDataForAnalytics(session_id)
+    ENG-->>BFF: raw answers + metadata
+    BFF->>Report: GenerateReport(session_id, client_metadata_json, responses)
     Report-->>Report: score / interpretation / DOCX generation
 ```
 

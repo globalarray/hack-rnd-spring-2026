@@ -58,6 +58,40 @@ services:
         condition: service_started
     ports:
       - "50051:50051"
+  bff-go:
+    build:
+      context: .
+      dockerfile: services/bff-go/Dockerfile
+    networks:
+      - hack-net
+    depends_on:
+      test-engine:
+        condition: service_started
+      analytics-python:
+        condition: service_started
+    environment:
+      PORT: 8080
+      ENGINE_ADDR: test-engine:50036
+      ENGINE_INSECURE: "false"
+      ENGINE_CA_CERT_PATH: /etc/certs/ca.crt
+      ENGINE_CLIENT_CERT_PATH: /etc/certs/client.crt
+      ENGINE_CLIENT_KEY_PATH: /etc/certs/client.key
+      ENGINE_SERVER_NAME: testengine
+      ANALYTICS_ADDR: analytics-python:50051
+      ANALYTICS_INSECURE: "true"
+      DEFAULT_CLIENT_REPORT_FORMAT: ${DEFAULT_CLIENT_REPORT_FORMAT:-client_docx}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-no-reply@profdnk.local}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-false}
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./certs/ca.crt:/etc/certs/ca.crt:ro
+      - ./certs/client.crt:/etc/certs/client.crt:ro
+      - ./certs/client.key:/etc/certs/client.key:ro
 networks:
   hack-net:
     driver: bridge

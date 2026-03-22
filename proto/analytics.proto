@@ -1,9 +1,8 @@
 syntax = "proto3";
 
 package analytics.v1;
-option go_package = "sourcecraft.dev/benzo/testengine/internal/gen/pb";
+option go_package = "sourcecraft.dev/benzo/bff/internal/clients/grpc/analyticspb;analyticspb";
 
-// 1. Сначала определения перечислений
 enum QuestionType {
   QUESTION_TYPE_UNSPECIFIED = 0;
   CHOICE = 1;
@@ -18,7 +17,6 @@ enum ReportFormat {
   REPORT_FORMAT_PSYCHO_HTML = 4;
 }
 
-// 2. Определение маленького сообщения (ДО того, как оно понадобится)
 message RawClientResponse {
   string question_id = 1;
   QuestionType question_type = 2;
@@ -28,10 +26,12 @@ message RawClientResponse {
   string raw_text = 6;
 }
 
-// 3. Теперь это сообщение МОЖНО использовать здесь
 message GenerateReportRequest {
   string session_id = 1;
   ReportFormat format = 2;
+  // Opaque JSON from StartSessionRequest.client_metadata_json.
+  // The report generator uses full_name/fullName/fio to personalize the report.
+  string client_metadata_json = 3;
   repeated RawClientResponse responses = 4;
 }
 
@@ -41,7 +41,6 @@ message GenerateReportResponse {
   string suggested_filename = 3;
 }
 
-// 4. Сервис
 service AnalyticsService {
   rpc GenerateReport(GenerateReportRequest) returns (GenerateReportResponse);
 }
