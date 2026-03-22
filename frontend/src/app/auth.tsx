@@ -9,6 +9,7 @@ import {
 
 import { api } from "../lib/api";
 import type { AppSession, AuthTokens, UserProfile } from "../lib/types";
+import { safeParseJson } from "../lib/utils";
 
 type AuthContextValue = {
   session: AppSession | null;
@@ -29,11 +30,13 @@ function readStoredSession() {
   }
 
   const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (!raw) {
-    return null;
+  const parsed = safeParseJson<{ tokens: AuthTokens; profile: UserProfile } | null>(raw, null);
+
+  if (!parsed && raw) {
+    window.localStorage.removeItem(STORAGE_KEY);
   }
 
-  return JSON.parse(raw) as { tokens: AuthTokens; profile: UserProfile };
+  return parsed;
 }
 
 function persistSession(nextSession: AppSession | null) {

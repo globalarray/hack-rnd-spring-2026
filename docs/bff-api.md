@@ -192,9 +192,11 @@ Response:
 - `inactive`
 - `blocked`
 
-### 6. Update Current Profile
+### 6. Update Current Admin Profile
 
 `PATCH /api/v1/auth/profile`
+
+Administrator only. Updates the currently authenticated administrator profile.
 
 Request:
 
@@ -205,7 +207,22 @@ Request:
 }
 ```
 
-### 7. Get Public Profile
+### 7. Update Psychologist Profile
+
+`PATCH /api/v1/auth/users/{userId}/profile`
+
+Administrator only.
+
+Request:
+
+```json
+{
+  "photoUrl": "https://example.com/avatar.jpg",
+  "about": "Практикующий профориентолог"
+}
+```
+
+### 8. Get Public Profile
 
 `GET /public/v1/profiles/{userId}`
 
@@ -219,7 +236,7 @@ Response:
 }
 ```
 
-### 8. Block User
+### 9. Block User
 
 `POST /api/v1/auth/users/block`
 
@@ -233,7 +250,7 @@ Request:
 }
 ```
 
-### 9. Unblock User
+### 10. Unblock User
 
 `POST /api/v1/auth/users/unblock`
 

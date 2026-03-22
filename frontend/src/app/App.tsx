@@ -8,6 +8,7 @@ import { InvitationPage } from "../pages/InvitationPage";
 import { LoginPage } from "../pages/LoginPage";
 import { PsychologistDashboard } from "../pages/PsychologistDashboard";
 import { AuthProvider, useAuth } from "./auth";
+import { AppErrorBoundary } from "./error-boundary";
 
 function AppRoutes() {
   return (
@@ -43,7 +44,9 @@ export function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <AppRoutes />
+        <AppErrorBoundary>
+          <AppRoutes />
+        </AppErrorBoundary>
       </BrowserRouter>
     </AuthProvider>
   );

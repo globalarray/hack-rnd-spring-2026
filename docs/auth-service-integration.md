@@ -94,6 +94,7 @@ Protected:
 
 - `GET /api/v1/auth/profile`
 - `PATCH /api/v1/auth/profile`
+- `PATCH /api/v1/auth/users/{userId}/profile`
 - `POST /api/v1/auth/invitations`
 - `POST /api/v1/auth/users/block`
 - `POST /api/v1/auth/users/unblock`
@@ -103,4 +104,5 @@ Protected:
 - the shared login endpoint returns `role`, so the frontend can route admin and psychologist into different cabinets
 - the invitation URL is assembled in BFF using `PUBLIC_BASE_URL`
 - `expiresAt` in REST may be sent as `YYYY-MM-DD`; BFF expands it to the end of that day
+- psychologist profile modification is allowed only through the administrator token via `PATCH /api/v1/auth/users/{userId}/profile`
 - survey flow for candidates remains under `/public/v1/sessions/...` and does not require auth

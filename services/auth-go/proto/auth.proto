@@ -10,6 +10,7 @@ option go_package= "./gen/go;auth";
 service AuthService {
     rpc GetProfile(google.protobuf.Empty) returns (ProfileResponse);
     rpc UpdateProfile(UpdateProfileRequest) returns (ProfileResponse);
+    rpc UpdateUserProfile(UpdateUserProfileRequest) returns (ProfileResponse);
     rpc GetPublicProfile(PublicProfileRequest) returns (PublicProfileResponse);
     rpc UnBlockUser(UnBlockUserRequest) returns (google.protobuf.Empty);
     rpc BlockUser(BlockUserRequest) returns (google.protobuf.Empty);
@@ -76,6 +77,12 @@ message InvitationResponse{
 message UpdateProfileRequest {
     string photo_url = 1;
     string about = 2;
+}
+
+message UpdateUserProfileRequest {
+    string user_id = 1;
+    string photo_url = 2;
+    string about = 3;
 }
 
 message PublicProfileRequest {

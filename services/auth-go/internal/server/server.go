@@ -335,6 +335,34 @@ func (s *AuthServer) UpdateProfile(ctx context.Context, in *auth.UpdateProfileRe
 	return mapUserToProfileResponse(user), nil
 }
 
+func (s *AuthServer) UpdateUserProfile(ctx context.Context, in *auth.UpdateUserProfileRequest) (*auth.ProfileResponse, error) {
+	if _, err := s.authorize(ctx, true); err != nil {
+		return nil, err
+	}
+
+	userID := strings.TrimSpace(in.GetUserId())
+	if userID == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
+	}
+
+	if err := s.repo.UpdateProfileByID(ctx, userID, in.GetAbout(), in.GetPhotoUrl()); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, status.Error(codes.NotFound, "profile not found")
+		}
+		return nil, status.Error(codes.Internal, "failed to update profile")
+	}
+
+	user, err := s.repo.GetProfileByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, status.Error(codes.NotFound, "profile not found")
+		}
+		return nil, status.Error(codes.Internal, "failed to get profile")
+	}
+
+	return mapUserToProfileResponse(user), nil
+}
+
 func (s *AuthServer) GetPublicProfile(ctx context.Context, in *auth.PublicProfileRequest) (*auth.PublicProfileResponse, error) {
 	userID := strings.TrimSpace(in.GetUserId())
 	if userID == "" {

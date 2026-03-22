@@ -70,6 +70,7 @@ func NewRouter(log *slog.Logger, surveys *usecase.SurveyUseCase, sessions *useca
 			r.Use(handler.requireAdminProfile)
 
 			r.Patch("/auth/profile", handler.updateProfile)
+			r.Patch("/auth/users/{userId}/profile", handler.updateUserProfile)
 			r.Post("/auth/invitations", handler.createInvitation)
 			r.Post("/auth/users/block", handler.blockUser)
 			r.Post("/auth/users/unblock", handler.unblockUser)
@@ -462,6 +463,27 @@ func (h *Handler) updateProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	profile, err := h.auth.UpdateProfile(r.Context(), r.Header.Get("Authorization"), domain.ProfileUpdate{
+		PhotoURL: req.PhotoURL,
+		About:    req.About,
+	})
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, mapProfile(profile))
+}
+
+func (h *Handler) updateUserProfile(w http.ResponseWriter, r *http.Request) {
+	userID := chi.URLParam(r, "userId")
+
+	var req updateProfileRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, err)
+		return
+	}
+
+	profile, err := h.auth.UpdateUserProfile(r.Context(), r.Header.Get("Authorization"), userID, domain.ProfileUpdate{
 		PhotoURL: req.PhotoURL,
 		About:    req.About,
 	})

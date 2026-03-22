@@ -21,7 +21,7 @@ import {
   type SurveySummary,
   type UserProfile
 } from "./types";
-import { buildQuestionTemplate, buildDefaultSettings, createId, encodeSetup, ensureQuestionOrder } from "./utils";
+import { buildQuestionTemplate, buildDefaultSettings, createId, encodeSetup, ensureQuestionOrder, safeParseJson } from "./utils";
 
 type MockUser = UserProfile & {
   password: string;
@@ -372,7 +372,14 @@ function getDb() {
     return seed;
   }
 
-  return JSON.parse(storage) as MockDatabase;
+  const parsed = safeParseJson<MockDatabase | null>(storage, null);
+  if (parsed) {
+    return parsed;
+  }
+
+  const seed = buildSeed();
+  writeStorage(seed);
+  return seed;
 }
 
 function saveDb(db: MockDatabase) {

@@ -121,7 +121,7 @@ export function EmptyState({
 }: {
   title: string;
   description: string;
-  action?: React.ReactNode;
+  action?: ReactNode;
 }) {
   return (
     <Card className="empty-state">

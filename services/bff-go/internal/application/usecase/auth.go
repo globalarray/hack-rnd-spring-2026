@@ -75,6 +75,17 @@ func (uc *AuthUseCase) UpdateProfile(ctx context.Context, authorization string, 
 	return uc.auth.UpdateProfile(ctx, authorization, input)
 }
 
+func (uc *AuthUseCase) UpdateUserProfile(ctx context.Context, authorization, userID string, input domain.ProfileUpdate) (*domain.UserProfile, error) {
+	if err := validateAuthorizationHeader(authorization); err != nil {
+		return nil, err
+	}
+	if _, err := uuid.Parse(strings.TrimSpace(userID)); err != nil {
+		return nil, fmt.Errorf("%w: userId must be a valid UUID", domain.ErrInvalidInput)
+	}
+
+	return uc.auth.UpdateUserProfile(ctx, authorization, userID, input)
+}
+
 func (uc *AuthUseCase) GetPublicProfile(ctx context.Context, userID string) (*domain.PublicProfile, error) {
 	if _, err := uuid.Parse(strings.TrimSpace(userID)); err != nil {
 		return nil, fmt.Errorf("%w: userId must be a valid UUID", domain.ErrInvalidInput)

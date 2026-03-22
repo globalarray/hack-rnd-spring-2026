@@ -21,6 +21,7 @@ type AuthGateway interface {
 	Register(ctx context.Context, token, password string) (*domain.AuthTokens, error)
 	GetProfile(ctx context.Context, authorization string) (*domain.UserProfile, error)
 	UpdateProfile(ctx context.Context, authorization string, input domain.ProfileUpdate) (*domain.UserProfile, error)
+	UpdateUserProfile(ctx context.Context, authorization, userID string, input domain.ProfileUpdate) (*domain.UserProfile, error)
 	GetPublicProfile(ctx context.Context, userID string) (*domain.PublicProfile, error)
 	CreateInvitation(ctx context.Context, authorization string, input domain.InvitationDraft) (string, error)
 	BlockUser(ctx context.Context, authorization, email string) error

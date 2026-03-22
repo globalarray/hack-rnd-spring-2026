@@ -109,20 +109,35 @@ PSY_ACCESS_TOKEN=$(echo "$REGISTER_RESP" | jq -r '.accessToken')
 ## 6. Get Current User Profile
 
 ```bash
-curl -s "$BASE_URL/api/v1/auth/profile" \
+PSY_PROFILE_RESP=$(curl -s "$BASE_URL/api/v1/auth/profile" \
   -H "Authorization: Bearer $PSY_ACCESS_TOKEN" \
-  | jq
+)
+
+echo "$PSY_PROFILE_RESP" | jq
+PSY_USER_ID=$(echo "$PSY_PROFILE_RESP" | jq -r '.id')
 ```
 
-## 7. Update Current User Profile
+## 7. Update Psychologist Profile As Admin
 
 ```bash
-curl -s -X PATCH "$BASE_URL/api/v1/auth/profile" \
+curl -s -X PATCH "$BASE_URL/api/v1/auth/users/$PSY_USER_ID/profile" \
   -H 'Content-Type: application/json' \
-  -H "Authorization: Bearer $PSY_ACCESS_TOKEN" \
+  -H "Authorization: Bearer $ADMIN_ACCESS_TOKEN" \
   -d '{
     "photoUrl": "https://example.com/avatar.jpg",
     "about": "Практикующий профориентолог"
+  }' \
+  | jq
+```
+
+Проверка запрета для психолога:
+
+```bash
+curl -s -X PATCH "$BASE_URL/api/v1/auth/users/$PSY_USER_ID/profile" \
+  -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $PSY_ACCESS_TOKEN" \
+  -d '{
+    "about": "Попытка обновления без прав администратора"
   }' \
   | jq
 ```

@@ -241,9 +241,12 @@ PSY_ACCESS_TOKEN=$(echo "$REGISTER_RESP" | jq -r '.accessToken')
 ### 4.4 Get Current Profile
 
 ```bash
-curl -s http://localhost:8080/api/v1/auth/profile \
+PSY_PROFILE_RESP=$(curl -s http://localhost:8080/api/v1/auth/profile \
   -H "Authorization: Bearer $PSY_ACCESS_TOKEN" \
-  | jq
+)
+
+echo "$PSY_PROFILE_RESP" | jq
+PSY_USER_ID=$(echo "$PSY_PROFILE_RESP" | jq -r '.id')
 ```
 
 Проверь:
@@ -251,6 +254,24 @@ curl -s http://localhost:8080/api/v1/auth/profile \
 - `role = "psychologist"`
 - `status = "active"`
 - `accessUntil` заполнен
+
+### 4.5 Update Psychologist Profile As Admin
+
+```bash
+curl -s -X PATCH "http://localhost:8080/api/v1/auth/users/$PSY_USER_ID/profile" \
+  -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $ADMIN_ACCESS_TOKEN" \
+  -d '{
+    "photoUrl": "https://example.com/avatar.jpg",
+    "about": "Практикующий профориентолог"
+  }' \
+  | jq
+```
+
+Проверь:
+
+- `about` обновился
+- запрос выполняется только с токеном администратора
 
 ## 5. Create Survey
 

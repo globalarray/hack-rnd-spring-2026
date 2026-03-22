@@ -67,6 +67,42 @@ request_json() {
   fi
 }
 
+request_json_expect_status() {
+  local expected_status="$1"
+  local method="$2"
+  local url="$3"
+  local body="${4:-}"
+  local authorization="${5:-}"
+  local response
+  local status
+  local curl_args=(
+    -sS
+    -w $'\n%{http_code}'
+    -X "$method"
+    "$url"
+    -H 'Content-Type: application/json'
+  )
+
+  if [[ -n "$authorization" ]]; then
+    curl_args+=(-H "Authorization: $authorization")
+  fi
+
+  if [[ -n "$body" ]]; then
+    curl_args+=(--data-binary "$body")
+  fi
+
+  response="$(curl "${curl_args[@]}")"
+  status="${response##*$'\n'}"
+  RESPONSE_BODY="${response%$'\n'*}"
+  RESPONSE_STATUS="$status"
+
+  if [[ "$status" != "$expected_status" ]]; then
+    echo "request failed: expected HTTP $expected_status, got $status for $method $url" >&2
+    pretty_print "$RESPONSE_BODY" >&2
+    exit 1
+  fi
+}
+
 future_dates() {
   python3 - <<'PY'
 from datetime import datetime, timedelta, timezone
@@ -160,8 +196,12 @@ UPDATE_PROFILE_PAYLOAD="$(jq -n \
   --arg about "$PSYCHOLOGIST_ABOUT" \
   '{about: $about, photoUrl: ""}')"
 
+print_step "Psychologist Update Is Forbidden"
+request_json_expect_status 403 PATCH "$BASE_URL/api/v1/auth/users/$PSYCHOLOGIST_USER_ID/profile" "$UPDATE_PROFILE_PAYLOAD" "$PSYCHOLOGIST_AUTHORIZATION"
+pretty_print "$RESPONSE_BODY"
+
 print_step "Update Psychologist Profile"
-request_json PATCH "$BASE_URL/api/v1/auth/profile" "$UPDATE_PROFILE_PAYLOAD" "$PSYCHOLOGIST_AUTHORIZATION"
+request_json PATCH "$BASE_URL/api/v1/auth/users/$PSYCHOLOGIST_USER_ID/profile" "$UPDATE_PROFILE_PAYLOAD" "$ADMIN_AUTHORIZATION"
 pretty_print "$RESPONSE_BODY"
 
 print_step "Get Public Psychologist Profile"

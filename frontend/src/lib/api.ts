@@ -22,7 +22,7 @@ import type {
   SurveySummary,
   UserProfile
 } from "./types";
-import { createId, encodeSetup } from "./utils";
+import { createId, encodeSetup, safeParseJson } from "./utils";
 
 type WorkspaceState = {
   directory: DirectoryItem[];
@@ -50,16 +50,12 @@ function readWorkspace(): WorkspaceState {
   }
 
   const raw = window.localStorage.getItem(WORKSPACE_KEY);
-  if (!raw) {
-    return {
-      directory: [],
-      shareLinksBySurvey: {},
-      draftSurveys: {},
-      annulledSurveyIds: []
-    };
-  }
-
-  return JSON.parse(raw) as WorkspaceState;
+  return safeParseJson<WorkspaceState>(raw, {
+    directory: [],
+    shareLinksBySurvey: {},
+    draftSurveys: {},
+    annulledSurveyIds: []
+  });
 }
 
 function writeWorkspace(state: WorkspaceState) {

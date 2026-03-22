@@ -76,6 +76,19 @@ func (c *Client) UpdateProfile(ctx context.Context, authorization string, input 
 	return mapProfile(resp)
 }
 
+func (c *Client) UpdateUserProfile(ctx context.Context, authorization, userID string, input domain.ProfileUpdate) (*domain.UserProfile, error) {
+	resp, err := c.client.UpdateUserProfile(withAuthorization(ctx, authorization), &authpb.UpdateUserProfileRequest{
+		UserId:   userID,
+		PhotoUrl: input.PhotoURL,
+		About:    input.About,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return mapProfile(resp)
+}
+
 func (c *Client) GetPublicProfile(ctx context.Context, userID string) (*domain.PublicProfile, error) {
 	resp, err := c.client.GetPublicProfile(ctx, &authpb.PublicProfileRequest{UserId: userID})
 	if err != nil {

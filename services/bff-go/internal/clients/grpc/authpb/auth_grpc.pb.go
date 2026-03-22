@@ -20,15 +20,16 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AuthService_GetProfile_FullMethodName       = "/auth.AuthService/GetProfile"
-	AuthService_UpdateProfile_FullMethodName    = "/auth.AuthService/UpdateProfile"
-	AuthService_GetPublicProfile_FullMethodName = "/auth.AuthService/GetPublicProfile"
-	AuthService_UnBlockUser_FullMethodName      = "/auth.AuthService/UnBlockUser"
-	AuthService_BlockUser_FullMethodName        = "/auth.AuthService/BlockUser"
-	AuthService_CreateInvitation_FullMethodName = "/auth.AuthService/CreateInvitation"
-	AuthService_Register_FullMethodName         = "/auth.AuthService/Register"
-	AuthService_Login_FullMethodName            = "/auth.AuthService/Login"
-	AuthService_RefreshToken_FullMethodName     = "/auth.AuthService/RefreshToken"
+	AuthService_GetProfile_FullMethodName        = "/auth.AuthService/GetProfile"
+	AuthService_UpdateProfile_FullMethodName     = "/auth.AuthService/UpdateProfile"
+	AuthService_UpdateUserProfile_FullMethodName = "/auth.AuthService/UpdateUserProfile"
+	AuthService_GetPublicProfile_FullMethodName  = "/auth.AuthService/GetPublicProfile"
+	AuthService_UnBlockUser_FullMethodName       = "/auth.AuthService/UnBlockUser"
+	AuthService_BlockUser_FullMethodName         = "/auth.AuthService/BlockUser"
+	AuthService_CreateInvitation_FullMethodName  = "/auth.AuthService/CreateInvitation"
+	AuthService_Register_FullMethodName          = "/auth.AuthService/Register"
+	AuthService_Login_FullMethodName             = "/auth.AuthService/Login"
+	AuthService_RefreshToken_FullMethodName      = "/auth.AuthService/RefreshToken"
 )
 
 // AuthServiceClient is the client API for AuthService service.
@@ -37,6 +38,7 @@ const (
 type AuthServiceClient interface {
 	GetProfile(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ProfileResponse, error)
 	UpdateProfile(ctx context.Context, in *UpdateProfileRequest, opts ...grpc.CallOption) (*ProfileResponse, error)
+	UpdateUserProfile(ctx context.Context, in *UpdateUserProfileRequest, opts ...grpc.CallOption) (*ProfileResponse, error)
 	GetPublicProfile(ctx context.Context, in *PublicProfileRequest, opts ...grpc.CallOption) (*PublicProfileResponse, error)
 	UnBlockUser(ctx context.Context, in *UnBlockUserRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	BlockUser(ctx context.Context, in *BlockUserRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -68,6 +70,16 @@ func (c *authServiceClient) UpdateProfile(ctx context.Context, in *UpdateProfile
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ProfileResponse)
 	err := c.cc.Invoke(ctx, AuthService_UpdateProfile_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) UpdateUserProfile(ctx context.Context, in *UpdateUserProfileRequest, opts ...grpc.CallOption) (*ProfileResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ProfileResponse)
+	err := c.cc.Invoke(ctx, AuthService_UpdateUserProfile_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -150,6 +162,7 @@ func (c *authServiceClient) RefreshToken(ctx context.Context, in *RefreshTokenRe
 type AuthServiceServer interface {
 	GetProfile(context.Context, *emptypb.Empty) (*ProfileResponse, error)
 	UpdateProfile(context.Context, *UpdateProfileRequest) (*ProfileResponse, error)
+	UpdateUserProfile(context.Context, *UpdateUserProfileRequest) (*ProfileResponse, error)
 	GetPublicProfile(context.Context, *PublicProfileRequest) (*PublicProfileResponse, error)
 	UnBlockUser(context.Context, *UnBlockUserRequest) (*emptypb.Empty, error)
 	BlockUser(context.Context, *BlockUserRequest) (*emptypb.Empty, error)
@@ -172,6 +185,9 @@ func (UnimplementedAuthServiceServer) GetProfile(context.Context, *emptypb.Empty
 }
 func (UnimplementedAuthServiceServer) UpdateProfile(context.Context, *UpdateProfileRequest) (*ProfileResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateProfile not implemented")
+}
+func (UnimplementedAuthServiceServer) UpdateUserProfile(context.Context, *UpdateUserProfileRequest) (*ProfileResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateUserProfile not implemented")
 }
 func (UnimplementedAuthServiceServer) GetPublicProfile(context.Context, *PublicProfileRequest) (*PublicProfileResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetPublicProfile not implemented")
@@ -247,6 +263,24 @@ func _AuthService_UpdateProfile_Handler(srv interface{}, ctx context.Context, de
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).UpdateProfile(ctx, req.(*UpdateProfileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_UpdateUserProfile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateUserProfileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).UpdateUserProfile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_UpdateUserProfile_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).UpdateUserProfile(ctx, req.(*UpdateUserProfileRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -391,6 +425,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateProfile",
 			Handler:    _AuthService_UpdateProfile_Handler,
+		},
+		{
+			MethodName: "UpdateUserProfile",
+			Handler:    _AuthService_UpdateUserProfile_Handler,
 		},
 		{
 			MethodName: "GetPublicProfile",
