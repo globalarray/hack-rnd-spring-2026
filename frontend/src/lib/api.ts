@@ -57,6 +57,7 @@ function resolveApiBaseUrl() {
 const API_BASE_URL = resolveApiBaseUrl();
 const API_MODE = ((import.meta.env.VITE_API_MODE as ApiMode | undefined) ?? "mock") as ApiMode;
 const WORKSPACE_KEY = "profdnk.workspace.v1";
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -218,6 +219,50 @@ function mapSurveyToPayload(draft: SurveyDraft) {
   };
 }
 
+function normalizeInvitationAccessUntil(value: string) {
+  const normalized = value.trim();
+  if (!normalized) {
+    throw new Error("Поле «Доступ до» обязательно.");
+  }
+
+  if (DATE_ONLY_PATTERN.test(normalized)) {
+    return normalized;
+  }
+
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error("Поле «Доступ до» должно быть в формате YYYY-MM-DD.");
+  }
+
+  return parsed.toISOString().slice(0, 10);
+}
+
+function normalizeInvitationExpiresAt(value: string) {
+  const normalized = value.trim();
+  if (!normalized) {
+    throw new Error("Поле «Ссылка действительна до» обязательно.");
+  }
+
+  if (DATE_ONLY_PATTERN.test(normalized)) {
+    return normalized;
+  }
+
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error("Поле «Ссылка действительна до» должно быть в формате YYYY-MM-DD или RFC3339.");
+  }
+
+  return parsed.toISOString();
+}
+
+function normalizeInvitationDraft(draft: InvitationDraft): InvitationDraft {
+  return {
+    ...draft,
+    accessUntil: normalizeInvitationAccessUntil(draft.accessUntil),
+    expiresAt: normalizeInvitationExpiresAt(draft.expiresAt)
+  };
+}
+
 function buildLocalShareLink(surveyId: string, survey: SurveyRecord, draft: ShareLinkDraft): ShareLinkConfig {
   const link: ShareLinkConfig = {
     id: createId(),
@@ -311,24 +356,26 @@ export const api = {
   },
 
   async createInvitation(accessToken: string, draft: InvitationDraft): Promise<InvitationLink> {
+    const normalizedDraft = normalizeInvitationDraft(draft);
+
     if (API_MODE === "mock") {
-      return mockBackend.createInvitation(`Bearer ${accessToken}`, draft);
+      return mockBackend.createInvitation(`Bearer ${accessToken}`, normalizedDraft);
     }
 
     const response = await request<InvitationLink>("/api/v1/auth/invitations", {
       method: "POST",
       accessToken,
-      body: JSON.stringify(draft)
+      body: JSON.stringify(normalizedDraft)
     });
 
     upsertDirectoryItem({
-      fullName: draft.fullName,
-      phone: draft.phone,
-      email: draft.email,
-      role: draft.role,
+      fullName: normalizedDraft.fullName,
+      phone: normalizedDraft.phone,
+      email: normalizedDraft.email,
+      role: normalizedDraft.role,
       status: "pending",
-      accessUntil: draft.accessUntil,
-      expiresAt: draft.expiresAt,
+      accessUntil: normalizedDraft.accessUntil,
+      expiresAt: normalizedDraft.expiresAt,
       invitationUrl: response.invitationUrl,
       invitationToken: response.invitationToken
     });
