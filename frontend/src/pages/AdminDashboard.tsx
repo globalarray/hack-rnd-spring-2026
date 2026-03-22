@@ -48,6 +48,7 @@ export function AdminDashboard() {
   const [createdLink, setCreatedLink] = useState("");
   const [feedback, setFeedback] = useState("");
   const [error, setError] = useState("");
+  const [copiedLink, setCopiedLink] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const minDate = useMemo(() => todayDateInputValue(), []);
@@ -71,6 +72,15 @@ export function AdminDashboard() {
       .catch((loadError) => setError(readErrorMessage(loadError)))
       .finally(() => setIsLoading(false));
   }, [session]);
+
+  useEffect(() => {
+    if (!copiedLink) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => setCopiedLink(""), 3000);
+    return () => window.clearTimeout(timeoutId);
+  }, [copiedLink]);
 
   const summary = useMemo(() => {
     const registered = directory.filter((item) => item.status !== "pending");
@@ -141,6 +151,7 @@ export function AdminDashboard() {
 
     try {
       await copyText(value);
+      setCopiedLink(value);
       setFeedback("Ссылка скопирована в буфер обмена.");
     } catch (copyError) {
       setError(readErrorMessage(copyError));
@@ -275,8 +286,13 @@ export function AdminDashboard() {
               <Card className="highlight-card">
                 <strong>Invitation link</strong>
                 <p>{createdLink}</p>
-                <GhostButton type="button" onClick={() => handleCopyLink(createdLink)}>
-                  Скопировать ссылку
+                <GhostButton
+                  type="button"
+                  className={copiedLink === createdLink ? "is-copied" : undefined}
+                  disabled={copiedLink === createdLink}
+                  onClick={() => handleCopyLink(createdLink)}
+                >
+                  {copiedLink === createdLink ? "Скопировано" : "Скопировать ссылку"}
                 </GhostButton>
               </Card>
             ) : null}
@@ -310,8 +326,13 @@ export function AdminDashboard() {
                     <div className="table-row__actions">
                       <Badge className={`status-badge status-badge--${item.status}`}>{item.status}</Badge>
                       {item.invitationUrl ? (
-                        <GhostButton type="button" onClick={() => handleCopyLink(item.invitationUrl ?? "")}>
-                          Скопировать инвайт
+                        <GhostButton
+                          type="button"
+                          className={copiedLink === item.invitationUrl ? "is-copied" : undefined}
+                          disabled={copiedLink === item.invitationUrl}
+                          onClick={() => handleCopyLink(item.invitationUrl ?? "")}
+                        >
+                          {copiedLink === item.invitationUrl ? "Скопировано" : "Скопировать инвайт"}
                         </GhostButton>
                       ) : null}
                       {item.status !== "pending" ? (

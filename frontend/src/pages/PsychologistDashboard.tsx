@@ -76,6 +76,7 @@ export function PsychologistDashboard() {
   const [selectedFieldKeys, setSelectedFieldKeys] = useState<string[]>([]);
   const [feedback, setFeedback] = useState("");
   const [error, setError] = useState("");
+  const [copiedLink, setCopiedLink] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingSurvey, setIsSavingSurvey] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -136,6 +137,15 @@ export function PsychologistDashboard() {
       .then(setSessions)
       .catch(() => setSessions([]));
   }, [selectedSurveyId, session]);
+
+  useEffect(() => {
+    if (!copiedLink) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => setCopiedLink(""), 3000);
+    return () => window.clearTimeout(timeoutId);
+  }, [copiedLink]);
 
   const stats = useMemo(() => {
     const activeTests = surveys.filter((survey) => survey.status === "active").length;
@@ -267,6 +277,7 @@ export function PsychologistDashboard() {
 
     try {
       await copyText(value);
+      setCopiedLink(value);
       setFeedback("Ссылка скопирована.");
     } catch (copyError) {
       setError(readErrorMessage(copyError));
@@ -522,8 +533,13 @@ export function PsychologistDashboard() {
                       <GhostButton type="button" onClick={() => window.open(link.publicUrl, "_blank", "noopener,noreferrer")}>
                         Открыть
                       </GhostButton>
-                      <Button type="button" onClick={() => handleCopy(link.publicUrl)}>
-                        Скопировать ссылку
+                      <Button
+                        type="button"
+                        className={copiedLink === link.publicUrl ? "is-copied" : undefined}
+                        disabled={copiedLink === link.publicUrl}
+                        onClick={() => handleCopy(link.publicUrl)}
+                      >
+                        {copiedLink === link.publicUrl ? "Скопировано" : "Скопировать ссылку"}
                       </Button>
                     </div>
                   </div>

@@ -37,6 +37,7 @@ body,
 body {
   margin: 0;
   color: var(--ink);
+  overflow-x: hidden;
   background:
     radial-gradient(circle at top left, rgba(22, 119, 255, 0.28), transparent 34%),
     radial-gradient(circle at top right, rgba(67, 184, 255, 0.26), transparent 28%),
@@ -122,6 +123,8 @@ ul {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
+  min-width: 0;
+  max-width: 100%;
   min-height: 46px;
   padding: 0.78rem 1.1rem;
   border: 0;
@@ -150,6 +153,21 @@ ul {
   background: rgba(255, 255, 255, 0.58);
   color: var(--ink);
   box-shadow: none;
+}
+
+.ui-button.is-copied,
+.ui-button.ghost.is-copied {
+  border-color: rgba(74, 104, 137, 0.22);
+  background: linear-gradient(135deg, rgba(210, 218, 228, 0.96), rgba(189, 199, 211, 0.94));
+  color: #4a5b70;
+  box-shadow: none;
+  transform: none;
+}
+
+.ui-button.is-copied.is-disabled,
+.ui-button.is-copied:disabled,
+.ui-button.ghost.is-copied:disabled {
+  opacity: 1;
 }
 
 .ui-badge {
@@ -188,6 +206,7 @@ ul {
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
+  min-width: 0;
 }
 
 .field__label {
@@ -208,6 +227,8 @@ ul {
 .ui-textarea,
 .ui-select {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   padding: 0.9rem 1rem;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
@@ -464,6 +485,7 @@ ul {
 .invitation-card,
 .candidate-card {
   max-width: 100%;
+  min-width: 0;
   padding: 1.6rem;
 }
 
@@ -623,6 +645,7 @@ ul {
 .checkbox-grid {
   display: grid;
   gap: 1rem;
+  min-width: 0;
 }
 
 .stats-grid {
@@ -1000,5 +1023,12 @@ ul {
 
   .brand-floating {
     position: static;
+  }
+
+  .ui-button,
+  .ui-input,
+  .ui-textarea,
+  .ui-select {
+    width: 100%;
   }
 }
