@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"testing"
@@ -60,13 +61,69 @@ func TestSessionUseCaseSubmitAnswerFetchesNextQuestionWithoutNextQuestionID(t *t
 	}
 }
 
+func TestSessionUseCaseStartSessionInjectsShareLinkIDIntoMetadata(t *testing.T) {
+	t.Parallel()
+
+	engine := &engineGatewayStub{
+		startSessionID: "67d77769-eb9e-44ce-999e-84d34b7379fd",
+		startSessionQuestion: &domain.Question{
+			ID:   "3e4b60ec-c80d-4ae0-97ea-0a2c7dd7c8d2",
+			Type: domain.QuestionTypeSingleChoice,
+			Text: "First question",
+		},
+	}
+
+	uc := NewSessionUseCase(
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		engine,
+		analyticsGatewayStub{},
+		mailerStub{},
+		"",
+	)
+
+	sessionID, _, err := uc.StartSession(
+		context.Background(),
+		"f6c3201d-0619-4a26-a07d-f7c819540b99",
+		"234b4e61-9389-4474-aab6-76d0831f8c53",
+		domain.NewClientMetadata(map[string]any{
+			"email":    "candidate@example.com",
+			"fullName": "Иван Иванов",
+		}),
+	)
+	if err != nil {
+		t.Fatalf("StartSession returned error: %v", err)
+	}
+
+	if sessionID != engine.startSessionID {
+		t.Fatalf("expected session id %q, got %q", engine.startSessionID, sessionID)
+	}
+
+	if engine.startSessionSurveyID != "f6c3201d-0619-4a26-a07d-f7c819540b99" {
+		t.Fatalf("unexpected survey id passed to engine: %q", engine.startSessionSurveyID)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(engine.startSessionClientMetadataJSON), &payload); err != nil {
+		t.Fatalf("expected valid metadata json, got %v", err)
+	}
+
+	if payload["__shareLinkId"] != "234b4e61-9389-4474-aab6-76d0831f8c53" {
+		t.Fatalf("expected __shareLinkId to be injected, got %#v", payload["__shareLinkId"])
+	}
+}
+
 type engineGatewayStub struct {
-	submitAnswerNextQuestionID string
-	submitAnswerIsFinished     bool
-	submitAnswerErr            error
-	currentQuestion            *domain.Question
-	currentQuestionErr         error
-	getCurrentQuestionCalled   bool
+	submitAnswerNextQuestionID     string
+	submitAnswerIsFinished         bool
+	submitAnswerErr                error
+	startSessionID                 string
+	startSessionSurveyID           string
+	startSessionClientMetadataJSON string
+	startSessionQuestion           *domain.Question
+	startSessionErr                error
+	currentQuestion                *domain.Question
+	currentQuestionErr             error
+	getCurrentQuestionCalled       bool
 }
 
 func (s *engineGatewayStub) CreateSurvey(context.Context, domain.SurveyDraft) (string, error) {
@@ -77,8 +134,10 @@ func (s *engineGatewayStub) ListSurveys(context.Context, string) ([]domain.Surve
 	panic("unexpected call to ListSurveys")
 }
 
-func (s *engineGatewayStub) StartSession(context.Context, string, string) (string, *domain.Question, error) {
-	panic("unexpected call to StartSession")
+func (s *engineGatewayStub) StartSession(_ context.Context, surveyID, clientMetadataJSON string) (string, *domain.Question, error) {
+	s.startSessionSurveyID = surveyID
+	s.startSessionClientMetadataJSON = clientMetadataJSON
+	return s.startSessionID, s.startSessionQuestion, s.startSessionErr
 }
 
 func (s *engineGatewayStub) GetCurrentQuestion(_ context.Context, _ string) (*domain.Question, error) {

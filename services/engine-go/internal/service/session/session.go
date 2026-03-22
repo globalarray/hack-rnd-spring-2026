@@ -18,6 +18,7 @@ import (
 type sessionRepo interface {
 	Create(ctx context.Context, input *dto.StartSessionInput) (string, error)
 	HasActiveSession(ctx context.Context, input *dto.StartSessionInput) (bool, error)
+	HasCompletedShareLinkSession(ctx context.Context, input *dto.StartSessionInput) (bool, error)
 	CurrentQuestion(ctx context.Context, sessionID string) (*question.Question, error)
 	SessionState(ctx context.Context, sessionID string) (*session.State, error)
 	Close(ctx context.Context, sessionID string, status session.SessionStatus) error
@@ -54,6 +55,14 @@ func (s *service) Start(ctx context.Context, input *dto.StartSessionInput) (*dto
 	}
 	if hasActiveSession {
 		return nil, fmt.Errorf("%s: %w", op, domain.ErrConflict)
+	}
+
+	hasCompletedShareLinkSession, err := s.repo.HasCompletedShareLinkSession(ctx, input)
+	if err != nil {
+		return nil, fmt.Errorf("%s: check completed share link session: %w", op, err)
+	}
+	if hasCompletedShareLinkSession {
+		return nil, fmt.Errorf("%s: %w", op, domain.ErrShareLinkUsed)
 	}
 
 	sessionID, err := s.repo.Create(ctx, input)

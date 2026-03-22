@@ -835,6 +835,18 @@ export const mockBackend = {
       throw new Error("В тесте нет вопросов");
     }
 
+    if (input.shareLinkId) {
+      const alreadyCompleted = db.sessions.some((session) => (
+        session.surveyId === input.surveyId
+        && session.shareLinkId === input.shareLinkId
+        && session.status === "completed"
+      ));
+
+      if (alreadyCompleted) {
+        throw new Error("Эта ссылка уже использована. Создайте новую ссылку для следующего прохождения.");
+      }
+    }
+
     const session: SessionRecord = {
       sessionId: createId(),
       surveyId: survey.surveyId,

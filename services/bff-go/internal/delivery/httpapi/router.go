@@ -277,7 +277,7 @@ func (h *Handler) startSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	metadata := domain.NewClientMetadata(req.ClientMetadata)
-	sessionID, firstQuestion, err := h.sessions.StartSession(r.Context(), req.SurveyID, metadata)
+	sessionID, firstQuestion, err := h.sessions.StartSession(r.Context(), req.SurveyID, req.ShareLinkID, metadata)
 	if err != nil {
 		writeError(w, err)
 		return

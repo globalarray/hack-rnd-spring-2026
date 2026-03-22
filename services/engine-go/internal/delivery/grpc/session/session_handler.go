@@ -38,6 +38,9 @@ func (s *sessionHandler) StartSession(ctx context.Context, req *pb.StartSessionR
 	q, err := s.service.Start(ctx, mapStartSessionRequestToStartSessionInput(req))
 
 	if err != nil {
+		if errors.Is(err, domain.ErrShareLinkUsed) {
+			return nil, status.Error(codes.AlreadyExists, "Эта ссылка уже использована. Создайте новую ссылку для следующего прохождения.")
+		}
 		if errors.Is(err, domain.ErrConflict) {
 			return nil, status.Error(codes.AlreadyExists, "session already started")
 		}

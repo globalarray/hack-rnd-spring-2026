@@ -3,9 +3,11 @@ package session
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/jmoiron/sqlx"
 	"sourcecraft.dev/benzo/testengine/internal/domain"
@@ -32,6 +34,21 @@ func normalizeClientMetadata(raw string) string {
 	return raw
 }
 
+func extractShareLinkID(raw string) string {
+	payload := strings.TrimSpace(raw)
+	if payload == "" {
+		return ""
+	}
+
+	var metadata map[string]any
+	if err := json.Unmarshal([]byte(payload), &metadata); err != nil {
+		return ""
+	}
+
+	shareLinkID, _ := metadata["__shareLinkId"].(string)
+	return strings.TrimSpace(shareLinkID)
+}
+
 func (repo *sessionRepository) Create(ctx context.Context, input *servicedto.StartSessionInput) (sessionID string, err error) {
 	const op = "sessionRepository.Create"
 
@@ -55,6 +72,25 @@ func (repo *sessionRepository) HasActiveSession(ctx context.Context, input *serv
 
 	if err := repo.db.GetContext(ctx, &exists, queryHasActiveSession, input.SurveyID, normalizeClientMetadata(input.ClientMetadataRaw)); err != nil {
 		return false, fmt.Errorf("%s: check active session: %w", op, err)
+	}
+
+	return exists, nil
+}
+
+func (repo *sessionRepository) HasCompletedShareLinkSession(ctx context.Context, input *servicedto.StartSessionInput) (bool, error) {
+	const op = "sessionRepository.HasCompletedShareLinkSession"
+
+	shareLinkID := strings.TrimSpace(input.ShareLinkID)
+	if shareLinkID == "" {
+		shareLinkID = extractShareLinkID(input.ClientMetadataRaw)
+	}
+	if shareLinkID == "" {
+		return false, nil
+	}
+
+	var exists bool
+	if err := repo.db.GetContext(ctx, &exists, queryHasCompletedShareLinkSession, input.SurveyID, shareLinkID); err != nil {
+		return false, fmt.Errorf("%s: check completed share link session: %w", op, err)
 	}
 
 	return exists, nil

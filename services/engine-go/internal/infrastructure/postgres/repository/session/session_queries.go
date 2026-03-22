@@ -20,5 +20,8 @@ var queryCloseSession string
 //go:embed sql/has_active_session.sql
 var queryHasActiveSession string
 
+//go:embed sql/has_completed_share_link_session.sql
+var queryHasCompletedShareLinkSession string
+
 //go:embed sql/insert_response.sql
 var queryInsertResponse string

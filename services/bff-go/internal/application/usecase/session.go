@@ -35,9 +35,18 @@ func NewSessionUseCase(
 	}
 }
 
-func (uc *SessionUseCase) StartSession(ctx context.Context, surveyID string, metadata domain.ClientMetadata) (string, *domain.Question, error) {
+func (uc *SessionUseCase) StartSession(ctx context.Context, surveyID, shareLinkID string, metadata domain.ClientMetadata) (string, *domain.Question, error) {
 	if err := validateUUID("surveyId", surveyID); err != nil {
 		return "", nil, err
+	}
+	if strings.TrimSpace(shareLinkID) != "" {
+		if err := validateUUID("shareLinkId", shareLinkID); err != nil {
+			return "", nil, err
+		}
+
+		values := metadata.Values()
+		values["__shareLinkId"] = strings.TrimSpace(shareLinkID)
+		metadata = domain.NewClientMetadata(values)
 	}
 
 	if _, err := metadata.Email(); err != nil {

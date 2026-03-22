@@ -651,12 +651,13 @@ export const api = {
       return mockBackend.startSession(input);
     }
 
-    const { surveyId, clientMetadata } = input;
+    const { surveyId, shareLinkId, clientMetadata } = input;
 
     return request<StartSessionResult>("/public/v1/sessions", {
       method: "POST",
       body: JSON.stringify({
         surveyId,
+        shareLinkId,
         clientMetadata
       })
     });
