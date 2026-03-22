@@ -74,6 +74,7 @@ const API_MODE = ((import.meta.env.VITE_API_MODE as ApiMode | undefined) ?? "moc
 const WORKSPACE_KEY = "profdnk.workspace.v1";
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const LOCAL_DATE_TIME_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+const LOOPBACK_HOSTNAMES = ["localhost", "127.0.0.1", "0.0.0.0"];
 
 function parseLocalDateTime(value: string) {
   if (!LOCAL_DATE_TIME_PATTERN.test(value)) {
@@ -90,6 +91,57 @@ function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+function normalizePublicUrl(value?: string) {
+  if (!value) {
+    return value;
+  }
+
+  try {
+    const resolved = new URL(value, PUBLIC_APP_URL);
+    const publicBase = new URL(PUBLIC_APP_URL);
+
+    if (LOOPBACK_HOSTNAMES.includes(resolved.hostname)) {
+      resolved.protocol = publicBase.protocol;
+      resolved.host = publicBase.host;
+    }
+
+    return resolved.toString();
+  } catch {
+    return value;
+  }
+}
+
+function normalizeWorkspaceState(state: WorkspaceState): WorkspaceState {
+  return {
+    ...state,
+    directory: state.directory.map((item) => ({
+      ...item,
+      invitationUrl: normalizePublicUrl(item.invitationUrl)
+    })),
+    shareLinksBySurvey: Object.fromEntries(
+      Object.entries(state.shareLinksBySurvey).map(([surveyId, links]) => [
+        surveyId,
+        links.map((link) => ({
+          ...link,
+          publicUrl: normalizePublicUrl(link.publicUrl) ?? link.publicUrl
+        }))
+      ])
+    ),
+    draftSurveys: Object.fromEntries(
+      Object.entries(state.draftSurveys).map(([surveyId, survey]) => [
+        surveyId,
+        {
+          ...survey,
+          shareLinks: survey.shareLinks.map((link) => ({
+            ...link,
+            publicUrl: normalizePublicUrl(link.publicUrl) ?? link.publicUrl
+          }))
+        }
+      ])
+    )
+  };
+}
+
 function readWorkspace(): WorkspaceState {
   if (typeof window === "undefined") {
     return {
@@ -101,12 +153,12 @@ function readWorkspace(): WorkspaceState {
   }
 
   const raw = window.localStorage.getItem(WORKSPACE_KEY);
-  return safeParseJson<WorkspaceState>(raw, {
+  return normalizeWorkspaceState(safeParseJson<WorkspaceState>(raw, {
     directory: [],
     shareLinksBySurvey: {},
     draftSurveys: {},
     annulledSurveyIds: []
-  });
+  }));
 }
 
 function writeWorkspace(state: WorkspaceState) {
@@ -120,14 +172,18 @@ function writeWorkspace(state: WorkspaceState) {
 function upsertDirectoryItem(item: DirectoryItem) {
   const workspace = readWorkspace();
   const existing = workspace.directory.findIndex((candidate) => candidate.email.toLowerCase() === item.email.toLowerCase());
+  const nextItem = {
+    ...item,
+    invitationUrl: normalizePublicUrl(item.invitationUrl)
+  };
 
   if (existing >= 0) {
     workspace.directory[existing] = {
       ...workspace.directory[existing],
-      ...item
+      ...nextItem
     };
   } else {
-    workspace.directory.unshift(item);
+    workspace.directory.unshift(nextItem);
   }
 
   writeWorkspace(workspace);
@@ -150,7 +206,10 @@ function listStoredShareLinks(surveyId: string) {
 function saveShareLink(surveyId: string, link: ShareLinkConfig) {
   const workspace = readWorkspace();
   const links = workspace.shareLinksBySurvey[surveyId] ?? [];
-  workspace.shareLinksBySurvey[surveyId] = [link, ...links];
+  workspace.shareLinksBySurvey[surveyId] = [{
+    ...link,
+    publicUrl: normalizePublicUrl(link.publicUrl) ?? link.publicUrl
+  }, ...links];
   writeWorkspace(workspace);
 }
 
@@ -399,6 +458,10 @@ export const api = {
       accessToken,
       body: JSON.stringify(normalizedDraft)
     });
+    const normalizedResponse = {
+      ...response,
+      invitationUrl: normalizePublicUrl(response.invitationUrl) ?? response.invitationUrl
+    };
 
     upsertDirectoryItem({
       fullName: normalizedDraft.fullName,
@@ -408,11 +471,11 @@ export const api = {
       status: "pending",
       accessUntil: normalizedDraft.accessUntil,
       expiresAt: normalizedDraft.expiresAt,
-      invitationUrl: response.invitationUrl,
-      invitationToken: response.invitationToken
+      invitationUrl: normalizedResponse.invitationUrl,
+      invitationToken: normalizedResponse.invitationToken
     });
 
-    return response;
+    return normalizedResponse;
   },
 
   async blockUser(accessToken: string, email: string) {

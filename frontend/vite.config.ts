@@ -4,6 +4,8 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   server: {
+    host: "0.0.0.0",
+    allowedHosts: ["hack.benzo.cloud"],
     port: 3000
   }
 });
