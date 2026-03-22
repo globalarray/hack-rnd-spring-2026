@@ -58,6 +58,18 @@ const API_BASE_URL = resolveApiBaseUrl();
 const API_MODE = ((import.meta.env.VITE_API_MODE as ApiMode | undefined) ?? "mock") as ApiMode;
 const WORKSPACE_KEY = "profdnk.workspace.v1";
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const LOCAL_DATE_TIME_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+
+function parseLocalDateTime(value: string) {
+  if (!LOCAL_DATE_TIME_PATTERN.test(value)) {
+    return null;
+  }
+
+  const [datePart, timePart] = value.split("T");
+  const [year, month, day] = datePart.split("-").map(Number);
+  const [hours, minutes] = timePart.split(":").map(Number);
+  return new Date(year, month - 1, day, hours, minutes, 0, 0);
+}
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -245,6 +257,11 @@ function normalizeInvitationExpiresAt(value: string) {
 
   if (DATE_ONLY_PATTERN.test(normalized)) {
     return normalized;
+  }
+
+  const localDateTime = parseLocalDateTime(normalized);
+  if (localDateTime && !Number.isNaN(localDateTime.getTime())) {
+    return localDateTime.toISOString();
   }
 
   const parsed = new Date(normalized);

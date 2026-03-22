@@ -14,7 +14,9 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />
-      <Route path="/login" element={<LoginPage />} />
+      <Route element={<GuestOnlyRoute />}>
+        <Route path="/login" element={<LoginPage />} />
+      </Route>
       <Route path="/invitations/:token" element={<InvitationPage />} />
       <Route path="/tests/:surveyId/start" element={<CandidateFlowPage />} />
       <Route element={<ProtectedRoute />}>
@@ -35,6 +37,20 @@ function ProtectedRoute() {
 
   if (!session) {
     return <Navigate to="/login" replace />;
+  }
+
+  return <Outlet />;
+}
+
+function GuestOnlyRoute() {
+  const { session, isBooting } = useAuth();
+
+  if (isBooting) {
+    return <LoadingScreen title="Проверяем сессию" description="Если вы уже входили в систему, сразу откроем нужную панель." />;
+  }
+
+  if (session) {
+    return <Navigate to={session.profile.role === "admin" ? "/admin" : "/psychologist"} replace />;
   }
 
   return <Outlet />;

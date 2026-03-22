@@ -29,6 +29,13 @@ const defaultInviteForm = {
   expiresAt: ""
 };
 
+function todayDateInputValue() {
+  const now = new Date();
+  const offsetMinutes = now.getTimezoneOffset();
+  const localDate = new Date(now.getTime() - offsetMinutes * 60_000);
+  return localDate.toISOString().slice(0, 10);
+}
+
 export function AdminDashboard() {
   const { session, logout, updateProfile } = useAuth();
   const [activeTab, setActiveTab] = useState<AdminTab>("directory");
@@ -43,6 +50,7 @@ export function AdminDashboard() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const minDate = useMemo(() => todayDateInputValue(), []);
 
   useEffect(() => {
     setProfileDraft({
@@ -220,13 +228,32 @@ export function AdminDashboard() {
               <Field label="Доступ до">
                 <Input
                   type="date"
+                  min={minDate}
                   value={inviteForm.accessUntil}
-                  onChange={(event) => setInviteForm((state) => ({ ...state, accessUntil: event.target.value }))}
+                  onChange={(event) =>
+                    setInviteForm((state) => {
+                      const accessUntil = event.target.value;
+                      const nextExpiresAt = !state.expiresAt || state.expiresAt > accessUntil
+                        ? accessUntil
+                        : state.expiresAt;
+
+                      return {
+                        ...state,
+                        accessUntil,
+                        expiresAt: nextExpiresAt
+                      };
+                    })
+                  }
                 />
               </Field>
-              <Field label="Ссылка действительна до">
+              <Field
+                label="Ссылка действительна до"
+                hint="Ссылка будет активна до конца выбранного дня. Время указывать не нужно."
+              >
                 <Input
-                  type="datetime-local"
+                  type="date"
+                  min={minDate}
+                  max={inviteForm.accessUntil || undefined}
                   value={inviteForm.expiresAt}
                   onChange={(event) => setInviteForm((state) => ({ ...state, expiresAt: event.target.value }))}
                 />
