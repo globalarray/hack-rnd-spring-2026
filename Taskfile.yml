@@ -187,8 +187,7 @@ tasks:
           exit 0
         fi
 
-        "$venv_python" -m pip install --upgrade pip
-        "$venv_python" -m pip install grpcio grpcio-tools protobuf
+        "$venv_python" -m pip install --disable-pip-version-check grpcio grpcio-tools protobuf
   proto:engine-go:
     desc: "Генерирует grpc_out и validate_out для engine-go"
     deps: [proto:ensure-go-tools]
@@ -348,8 +347,8 @@ tasks:
         done
   proto:
     desc: "Генерирует proto-контракты для всех сервисов; REBUILD_PROTO=true принудительно регенерирует их"
-    deps:
-      - proto:engine-go
-      - proto:bff-go
-      - proto:analytics-python
-      - proto:python-services
+    cmds:
+      - task: proto:engine-go
+      - task: proto:bff-go
+      - task: proto:analytics-python
+      - task: proto:python-services
