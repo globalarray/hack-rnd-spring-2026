@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 	"sourcecraft.dev/benzo/testengine/internal/domain"
 	"sourcecraft.dev/benzo/testengine/internal/domain/models/answer"
 	"sourcecraft.dev/benzo/testengine/internal/domain/models/question"
@@ -60,6 +61,10 @@ func (r *surveyRepository) SaveFull(ctx context.Context, in *servicedto.CreateSu
 
 		for _, a := range q.Answers {
 			if _, err := tx.ExecContext(ctx, queryInsertAnswer, a.ID, qUUID, a.Text, a.Weight, a.CategoryTag); err != nil {
+				var pqErr *pq.Error
+				if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+					return surveyUUID, fmt.Errorf("%s: insert answer: answer ids must be globally unique: %w", op, domain.ErrConflict)
+				}
 				return surveyUUID, fmt.Errorf("%s: insert answer: %w", op, err)
 			}
 		}

@@ -2,11 +2,13 @@ package survey
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"sourcecraft.dev/benzo/testengine/internal/domain"
 	"sourcecraft.dev/benzo/testengine/internal/gen/pb"
 	"sourcecraft.dev/benzo/testengine/internal/service/survey/dto"
 )
@@ -45,6 +47,9 @@ func (sh *surveyHandler) CreateSurvey(ctx context.Context, req *pb.CreateSurveyR
 
 	if err != nil {
 		sh.log.With(slog.String("op", op), slog.Any("error", err)).Error("create uuid")
+		if errors.Is(err, domain.ErrConflict) {
+			return nil, status.Error(codes.AlreadyExists, "answer ids must be globally unique for each created survey")
+		}
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 

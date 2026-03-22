@@ -132,14 +132,37 @@ curl http://localhost:8080/health
 
 ## 4. Create Survey
 
+Важно: поле `type` должно быть одним из строго допустимых значений:
+
+- `single_choice`
+- `multiple_choice`
+- `scale`
+- `text`
+
+Значение вроде `12single_choice` не пройдет валидацию и вернет ошибку:
+
+```json
+{
+  "error": {
+    "code": "invalid_request",
+    "message": "invalid input: unsupported question type \"12single_choice\""
+  }
+}
+```
+
 ```bash
+ANSWER_1_UUID=$(uuidgen | tr '[:upper:]' '[:lower:]')
+ANSWER_2_UUID=$(uuidgen | tr '[:upper:]' '[:lower:]')
+ANSWER_3_UUID=$(uuidgen | tr '[:upper:]' '[:lower:]')
+ANSWER_4_UUID=$(uuidgen | tr '[:upper:]' '[:lower:]')
+
 CREATE_RESP=$(curl -s -X POST http://localhost:8080/api/v1/surveys \
   -H 'Content-Type: application/json' \
-  -d @- <<'JSON'
+  -d @- <<JSON
 {
   "psychologistId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-  "title": "Тест профориентации через BFF",
-  "description": "Проверка полного сценария",
+  "title": "12Тест профориентации через BFF",
+  "description": "12Проверка полного сценария",
   "settings": {
     "limits": {
       "time_limit_sec": 900
@@ -156,13 +179,13 @@ CREATE_RESP=$(curl -s -X POST http://localhost:8080/api/v1/surveys \
       },
       "answers": [
         {
-          "id": "123e4567-e89b-42d3-a456-426614174001",
+          "id": "'"$ANSWER_1_UUID"'",
           "text": "Общение с людьми",
           "weight": 1,
           "categoryTag": "people"
         },
         {
-          "id": "123e4567-e89b-42d3-a456-426614174002",
+          "id": "'"$ANSWER_2_UUID"'",
           "text": "Работа с данными",
           "weight": 2,
           "categoryTag": "analysis"
@@ -179,13 +202,13 @@ CREATE_RESP=$(curl -s -X POST http://localhost:8080/api/v1/surveys \
       },
       "answers": [
         {
-          "id": "123e4567-e89b-42d3-a456-426614174003",
+          "id": "'"$ANSWER_3_UUID"'",
           "text": "Анализировать информацию",
           "weight": 3,
           "categoryTag": "analysis"
         },
         {
-          "id": "123e4567-e89b-42d3-a456-426614174004",
+          "id": "'"$ANSWER_4_UUID"'",
           "text": "Координировать процессы",
           "weight": 2,
           "categoryTag": "management"
@@ -199,6 +222,18 @@ JSON
 
 echo "$CREATE_RESP" | jq
 SURVEY_ID=$(echo "$CREATE_RESP" | jq -r '.surveyId')
+```
+
+Почему так:
+
+- `answers.id` в БД глобально уникален
+- если повторно запускать один и тот же `CreateSurvey` с одинаковыми `answerId`, Postgres вернет `duplicate key value violates unique constraint "answers_pkey"`
+- поэтому для smoke-тестов безопаснее каждый раз генерировать новые `UUID`
+
+Проверить, что тест появился в кабинете:
+
+```bash
+curl -s "http://localhost:8080/api/v1/surveys?psychologistId=3fa85f64-5717-4562-b3fc-2c963f66afa6" | jq
 ```
 
 ## 5. Start Session
